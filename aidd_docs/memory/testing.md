@@ -3,7 +3,7 @@
 ## Commands
 
 - `pnpm test`: Vitest over `packages/*/src/**/*.test.ts` and `packages/*/components/**/*.test.ts`. No real CLI, login or browser needed.
-- `pnpm typecheck`: `tsc --noEmit` over the packages.
+- `pnpm typecheck`: `vue-tsc --noEmit` over the packages, the `.vue` files (script and template) and `fake-claude.mjs` (`checkJs`). Not covered: `examples/demo-deck/` (a Markdown deck, no TypeScript). Slidev's own virtual modules are not typed, and the addon imports none.
 
 ## Conventions
 

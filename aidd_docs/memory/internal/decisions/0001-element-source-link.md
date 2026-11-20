@@ -18,7 +18,7 @@ Can a rendered element be tied to its exact line in `slides.md` using only an ad
 ## Decision
 
 - The product ships slide + text excerpt + selector as the guaranteed locator.
-- `line` stays optional. It is filled best-effort on the server by locating the excerpt inside the slide's source (see phase 5), never trusted as exact.
+- `line` stays optional. It is filled best-effort on the server by locating the excerpt inside the slide's source (see phase 5), never trusted as exact. It is a hint: the match is the first source line that starts or contains the rendered text once inline markdown (bold, links, code) and a trailing excerpt ellipsis are dropped, so it can be missing (text built by a component or across lines) or wrong (repeated text).
 - The prompt tells the agent the line is a hint and the excerpt is authoritative.
 
 ## Unverified
