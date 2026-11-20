@@ -80,7 +80,13 @@ export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
     if (comments.length === 0) return c.json({ error: 'The stack is empty: add a comment before sending' }, 400)
     stack.lock()
     setStatus({ state: 'running' })
-    current = deps.agent.run({ prompt: buildPrompt(comments), cwd: deps.cwd }, onEvent)
+    try {
+      current = deps.agent.run({ prompt: buildPrompt(comments), cwd: deps.cwd }, onEvent)
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      onEvent({ type: 'failed', reason })
+      return c.json({ error: reason }, 500)
+    }
     return c.json({ ok: true }, 202)
   })
 

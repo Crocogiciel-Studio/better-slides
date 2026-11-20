@@ -5,6 +5,7 @@ import { createApp } from './index.ts'
 /** Agent whose run ends when the test says so. */
 function controllableAgent() {
   const prompts: string[] = []
+  const state = { cancels: 0 }
   let emit: (e: AgentEvent) => void = () => {}
   const agent: Agent = {
     name: 'fake',
@@ -12,10 +13,10 @@ function controllableAgent() {
       prompts.push(request.prompt)
       emit = onEvent
       onEvent({ type: 'running' })
-      return { cancel() {}, done: Promise.resolve() }
+      return { cancel: () => state.cancels++, done: Promise.resolve() }
     },
   }
-  return { agent, prompts, emit: (e: AgentEvent) => emit(e) }
+  return { agent, prompts, state, emit: (e: AgentEvent) => emit(e) }
 }
 
 function client(deps = controllableAgent()) {
@@ -120,14 +121,28 @@ describe('review routes', () => {
   })
 
   it('cancels the current run through the agent', async () => {
-    let cancelled = false
-    const t = controllableAgent()
-    const run = t.agent.run.bind(t.agent)
-    t.agent.run = (req, on) => ({ ...run(req, on), cancel: () => (cancelled = true) })
-    const c = client(t)
-    await c.add('one')
-    await c.call('POST', '/send')
-    await c.call('POST', '/cancel')
-    expect(cancelled).toBe(true)
+    const t = client()
+    await t.add('one')
+    await t.call('POST', '/send')
+    await t.call('POST', '/cancel')
+    expect(t.state.cancels).toBe(1)
+  })
+
+  it('reports failed and unlocks the stack when the agent throws on start', async () => {
+    const agent: Agent = {
+      name: 'broken',
+      run() {
+        throw new Error('spawn exploded')
+      },
+    }
+    const t = client({ ...controllableAgent(), agent })
+    await t.add('one')
+    const res = await t.call('POST', '/send')
+    expect(res.status).toBe(500)
+    expect(await (await t.call('GET', '/status')).json()).toEqual({ state: 'failed', reason: 'spawn exploded' })
+    const body = (await (await t.call('GET', '/comments')).json()) as { comments: unknown[]; locked: boolean }
+    expect(body).toMatchObject({ locked: false })
+    expect(body.comments).toHaveLength(1)
+    expect((await t.call('POST', '/send')).status).toBe(500)
   })
 })
