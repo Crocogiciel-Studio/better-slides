@@ -2,6 +2,7 @@
 // Set BETTER_SLIDE_CHROMIUM to a Chromium/Chrome binary and BETTER_SLIDE_SCREENSHOTS to a folder to keep the screenshots.
 import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,9 +14,19 @@ const demo = join(root, 'examples/demo-deck')
 const PORT = 3131
 const PLAIN_PORT = 3132
 const shots = process.env.BETTER_SLIDE_SCREENSHOTS ?? join(tmpdir(), 'better-slide-screenshots')
-const chromium = [process.env.BETTER_SLIDE_CHROMIUM, '/home/agent/.cache/ms-playwright/chromium-1255/chrome-linux-arm64/chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find(
-  (p) => p && existsSync(p),
-)
+/** A browser Playwright installed, else a system one. BETTER_SLIDE_CHROMIUM wins when set. */
+function findChromium(): string | undefined {
+  let installed: string | undefined
+  try {
+    installed = createRequire(import.meta.url)('playwright-core').chromium.executablePath()
+  } catch {
+    // playwright-core missing or no browser path known: fall back to system browsers.
+  }
+  return [process.env.BETTER_SLIDE_CHROMIUM, installed, '/usr/bin/chromium', '/usr/bin/chromium-browser', '/usr/bin/google-chrome', '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'].find(
+    (p) => p && existsSync(p),
+  )
+}
+const chromium = findChromium()
 if (!chromium) console.warn('review-ui e2e skipped: no Chromium found. Set BETTER_SLIDE_CHROMIUM to a Chromium or Chrome binary.')
 
 const SIZES = [
@@ -49,7 +60,8 @@ async function waitFor(url: string) {
 
 let browser: Browser
 
-describe.skipIf(!chromium)('review UI in Chromium', () => {
+// A real browser against a dev server that may still be compiling: the 5 s default is too short.
+describe.skipIf(!chromium)('review UI in Chromium', { timeout: 60_000 }, () => {
   beforeAll(async () => {
     mkdirSync(shots, { recursive: true })
     writeFileSync(join(demo, 'plain.e2e.md'), '---\ntheme: default\n---\n\n# One\n\n---\n\n# Two\n')
