@@ -42,6 +42,7 @@ Later milestones add a library to find your decks and past reviews again, and th
 
 - The rendered element is tied to the source by slide, text excerpt and selector. A line number is added when the excerpt is found in the slide, as a best-effort hint only: it can be missing or point at the first of several matches ([decision 0001](aidd_docs/memory/internal/decisions/0001-element-source-link.md)).
 - The deck can only be reviewed on loopback, not with `--host`.
+- Terms of use: whether a provider allows its subscription to be used through a third-party tool is not settled, and the sources found disagree. Better Slide only launches the CLI you installed, as you, and never touches your login. Check Anthropic's and OpenAI's current terms before relying on it.
 - Only Claude Code is supported. The agent layer leaves room for another CLI.
 - The Claude Code launch flags come from the CLI's documented help and are untested against a real run ([decision 0002](aidd_docs/memory/internal/decisions/0002-agent-headless-launch.md)).
 
