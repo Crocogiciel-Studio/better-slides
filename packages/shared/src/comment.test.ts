@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_EXCERPT_LENGTH, validateComment } from './comment.ts'
+import { MAX_EXCERPT_LENGTH, MAX_NOTE_LENGTH, MAX_SELECTOR_LENGTH, validateComment } from './comment.ts'
 
 const valid = { slide: 2, text: 'Intro text', selector: 'p:nth-of-type(1)', note: 'Shorten it' }
 
@@ -31,6 +31,17 @@ describe('validateComment', () => {
 
   it('truncates a long excerpt', () => {
     const r = validateComment({ ...valid, text: 'x'.repeat(500) })
+    expect(r.ok && r.comment.text.length).toBe(MAX_EXCERPT_LENGTH)
+  })
+
+  it('accepts a note and selector at their limits and rejects one character more', () => {
+    expect(validateComment({ ...valid, note: 'n'.repeat(MAX_NOTE_LENGTH), selector: 's'.repeat(MAX_SELECTOR_LENGTH) }).ok).toBe(true)
+    expect(validateComment({ ...valid, note: 'n'.repeat(MAX_NOTE_LENGTH + 1) })).toMatchObject({ ok: false, field: 'note' })
+    expect(validateComment({ ...valid, selector: 's'.repeat(MAX_SELECTOR_LENGTH + 1) })).toMatchObject({ ok: false, field: 'selector' })
+  })
+
+  it('bounds the text to the excerpt limit however long the input is', () => {
+    const r = validateComment({ ...valid, text: 'y'.repeat(1_000_000) })
     expect(r.ok && r.comment.text.length).toBe(MAX_EXCERPT_LENGTH)
   })
 })

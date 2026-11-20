@@ -1,11 +1,14 @@
 import { getRequestListener } from '@hono/node-server'
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { guard } from './guard.ts'
 import { registerReviewRoutes, type ReviewDeps } from './routes.ts'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 export type { ReviewDeps, RunStatus } from './routes.ts'
 
+/** A comment is a few KB at most. */
+export const MAX_BODY_BYTES = 64 * 1024
 export const API_PREFIX = '/__better-slide'
 
 export type Next = (error?: unknown) => void
@@ -14,6 +17,7 @@ export type Middleware = (req: IncomingMessage, res: ServerResponse, next: Next)
 export function createApp(deps?: ReviewDeps): Hono {
   const app = new Hono().basePath(API_PREFIX)
   app.use('*', guard())
+  app.use('*', bodyLimit({ maxSize: MAX_BODY_BYTES, onError: (c) => c.json({ error: 'Request body too large' }, 413) }))
   app.get('/ping', (c) => c.json({ ok: true }))
   if (deps) registerReviewRoutes(app, deps)
   return app

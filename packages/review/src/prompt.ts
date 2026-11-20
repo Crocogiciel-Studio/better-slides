@@ -1,5 +1,8 @@
 import type { Comment } from '@better-slide/shared'
 
+/** One line: a field cannot start a new line, so it cannot pose as a `Slide N` section or a list item. */
+const oneLine = (s: string) => s.replace(/\s+/g, ' ').trim()
+
 /** One compact prompt for the whole stack, grouped by slide. */
 export function buildPrompt(comments: Comment[]): string {
   const bySlide = new Map<number, Comment[]>()
@@ -8,8 +11,8 @@ export function buildPrompt(comments: Comment[]): string {
   }
   const sections = [...bySlide].map(([slide, list]) => {
     const lines = list.map((c) => {
-      const where = [`text "${c.text}"`, `selector \`${c.selector}\``, c.line ? `near line ${c.line}` : ''].filter(Boolean)
-      return `- ${where.join(', ')}\n  Change: ${c.note}`
+      const where = [`text "${oneLine(c.text)}"`, `selector \`${oneLine(c.selector)}\``, c.line ? `near line ${c.line}` : ''].filter(Boolean)
+      return `- ${where.join(', ')}\n  Change: ${oneLine(c.note)}`
     })
     return `Slide ${slide}\n${lines.join('\n')}`
   })

@@ -1,4 +1,6 @@
 export const MAX_EXCERPT_LENGTH = 120
+export const MAX_NOTE_LENGTH = 2000
+export const MAX_SELECTOR_LENGTH = 500
 
 /** A review comment attached to one slide element. */
 export interface Comment {
@@ -36,8 +38,8 @@ export function validateComment(input: unknown): ValidationResult {
   const c = input as Record<string, unknown>
   if (!Number.isInteger(c.slide) || (c.slide as number) < 1) return missing('slide')
   if (!nonEmptyString(c.text)) return missing('text')
-  if (!nonEmptyString(c.selector)) return missing('selector')
-  if (!nonEmptyString(c.note)) return missing('note')
+  if (!nonEmptyString(c.selector) || c.selector.length > MAX_SELECTOR_LENGTH) return missing('selector')
+  if (!nonEmptyString(c.note) || c.note.length > MAX_NOTE_LENGTH) return missing('note')
   if (c.line !== undefined && (!Number.isInteger(c.line) || (c.line as number) < 1)) return missing('line')
   return {
     ok: true,

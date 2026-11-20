@@ -1,6 +1,6 @@
 import type { Agent, AgentEvent } from '@better-slide/agents'
 import { describe, expect, it } from 'vitest'
-import { createApp } from './index.ts'
+import { createApp, MAX_BODY_BYTES } from './index.ts'
 
 /** Agent whose run ends when the test says so. */
 function controllableAgent() {
@@ -71,6 +71,15 @@ describe('review routes', () => {
     expect((await t.call('POST', '/comments', { slide: 1, text: 'x', selector: 'p', note: 'n' })).status).toBe(423)
     expect((await t.call('DELETE', `/comments/${a.id}`)).status).toBe(423)
     expect((await t.call('POST', '/send')).status).toBe(409)
+  })
+
+  it('refuses an oversized body with 413 and an over-long note with 400', async () => {
+    const { call } = client()
+    const big = await call('POST', '/comments', { slide: 1, text: 't', selector: 'p', note: 'n'.repeat(MAX_BODY_BYTES) })
+    expect(big.status).toBe(413)
+    const long = await call('POST', '/comments', { slide: 1, text: 't', selector: 'p', note: 'n'.repeat(5000) })
+    expect(long.status).toBe(400)
+    expect(await long.json()).toMatchObject({ field: 'note' })
   })
 
   it('refuses to send an empty stack', async () => {
