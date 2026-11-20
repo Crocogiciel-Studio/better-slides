@@ -11,5 +11,5 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["packages/*/src", "packages/*/setup", "packages/*/components/*.ts", "packages/*/test", "vitest.config.ts"]
+  "include": ["packages/*/src", "packages/*/setup", "packages/*/components/*.ts", "vitest.config.ts"]
 }
