@@ -22,7 +22,7 @@ Out of scope for V1: manual editing on the slide (text, position, size) and a de
 | ------------ | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Architecture | Modular local monolith (monorepo of packages, a single process)                     | Single user, local. Separate modules keep a later desktop packaging (Electron or Tauri) open.                   |
 | Front-end    | Vue 3 + Vite, TypeScript, injected into the Slidev preview (global layer)           | Slidev's own stack, mastered by the team. No SEO.                                                               |
-| Back-end     | Node + TypeScript, Hono (or Fastify), as middleware of Slidev's Vite dev server     | No second port. The agent layer is an interface with one adapter per CLI.                                       |
+| Back-end     | Node + TypeScript, Hono, as middleware of Slidev's Vite dev server     | No second port. The agent layer is an interface with one adapter per CLI.                                       |
 | Database     | Files (`slides.md`, source of truth) + local SQLite for the index and history       | Finding decks and their reviews requires queries. Local, serverless, free. A JSON file may be enough at first (to settle in the plan phase). |
 | Auth         | None                                                                                | The subscription is carried by the user's own CLIs.                                                             |
 | Hosting      | None, distributed via npm + GitHub                                                  | Local tool, zero budget.                                                                                        |
@@ -31,7 +31,7 @@ Out of scope for V1: manual editing on the slide (text, position, size) and a de
 ## Stack summary
 
 - **Front-end:** Vue 3 + Vite + TypeScript, Slidev addon (`global-top.vue`, components). Versions to pin at scaffolding time.
-- **Back-end:** Node + TypeScript, Hono (or Fastify), mounted through `configureServer` of a Vite plugin.
+- **Back-end:** Node + TypeScript, Hono, mounted through `configureServer` of a Vite plugin.
 - **Database:** files + local SQLite, in the user's config directory. Decks stay in their own project folders.
 - **Auth:** none.
 - **Hosting:** none (npm + GitHub).
@@ -122,8 +122,8 @@ Manual install - the framework does not yet scaffold these automatically.
 2. Install and log in the user-side CLIs: Claude Code, and Codex if used (sign in with the subscription).
 3. Initialize the git repository and the monorepo (workspaces) with the `packages/` structure above.
 4. Create `examples/demo-deck` with Slidev, and check that `slidev` starts.
-5. Do the spike first: a minimal addon (global layer + a Vite hook answering on one route) to validate the combination, then the rendered element → source link (fallback: slide number + text excerpt + selector).
-6. Check that each CLI launches headless from a Node process, with `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` removed from the environment, and a PATH resolved through a login shell.
+5. Spike (done): one addon ships both a `setup/vite-plugins.ts` hook and a global layer. The rendered element → source link is not available out of the box, so the product ships slide + text excerpt + selector, plus a best-effort line found server-side. See [`0001-element-source-link.md`](memory/internal/decisions/0001-element-source-link.md).
+6. Headless launch (partly done): the adapter strips `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` and resolves the CLI through a login shell, tested with a fake CLI. A real run under a user login is unverified. See [`0002-agent-headless-launch.md`](memory/internal/decisions/0002-agent-headless-launch.md). Codex is not implemented.
 7. Re-read Anthropic's and OpenAI's terms of use on subscription use by third-party tools before any release.
 
 ## Audit summary
