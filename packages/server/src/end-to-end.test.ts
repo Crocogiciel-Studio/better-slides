@@ -40,7 +40,11 @@ describe('comment, stack, send against a fake agent', () => {
       locate: (slide, text) => locateLine(original, parts[slide] ?? '', text),
     })
     const call = (method: string, path: string, body?: unknown) =>
-      app.request(`/__better-slide${path}`, { method, body: body ? JSON.stringify(body) : undefined })
+      app.request(`/__better-slide${path}`, {
+        method,
+        body: body ? JSON.stringify(body) : undefined,
+        headers: { 'content-type': 'application/json' },
+      })
 
     const bodies: string[] = []
     for (const c of [

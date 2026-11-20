@@ -19,11 +19,16 @@ export default function setupVitePlugins(options: SlidevOptions): Plugin[] {
       return undefined
     }
   }
-  const app = createApp({ agent: createDefaultAgent(), cwd: options.userRoot, locate })
+  const agent = createDefaultAgent()
   return [
     {
       name: 'better-slide:server',
       configureServer(server) {
+        const host = server.config.server.host
+        const app = createApp(
+          { agent, cwd: options.userRoot, locate },
+          { allowedHosts: typeof host === 'string' ? [host] : [] },
+        )
         server.middlewares.use(createMiddleware(app))
       },
     },
