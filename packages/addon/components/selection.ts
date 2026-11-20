@@ -48,7 +48,7 @@ export function pickFromElement(raw: Element): Pick | undefined {
  * Selection mode: highlights the hovered element and reports a click as a pick.
  * Returns a stop function that removes the highlight and every listener.
  */
-export function startSelection(onPick: (pick: Pick) => void, doc: Document = document): () => void {
+export function startSelection(onPick: (pick: Pick, element: Element) => void, doc: Document = document): () => void {
   let highlighted: Element | undefined
   const clear = () => {
     highlighted?.removeAttribute(HIGHLIGHT_ATTRIBUTE)
@@ -67,7 +67,7 @@ export function startSelection(onPick: (pick: Pick) => void, doc: Document = doc
     if (!pick) return
     event.preventDefault()
     event.stopPropagation()
-    onPick(pick)
+    onPick(pick, resolveTarget(target))
   }
   const style = doc.createElement('style')
   style.setAttribute(UI_ATTRIBUTE, '')

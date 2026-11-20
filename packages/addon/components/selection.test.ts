@@ -69,7 +69,7 @@ describe('startSelection', () => {
     p.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
     expect(p.hasAttribute('data-better-slide-highlight')).toBe(true)
     p.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
-    expect(onPick).toHaveBeenCalledWith({ slide: 2, text: 'First paragraph', selector: 'p:nth-of-type(1)' })
+    expect(onPick).toHaveBeenCalledWith({ slide: 2, text: 'First paragraph', selector: 'p:nth-of-type(1)' }, p)
 
     stop()
     expect(document.querySelector('[data-better-slide-highlight]')).toBeNull()

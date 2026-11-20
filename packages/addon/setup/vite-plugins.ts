@@ -19,7 +19,10 @@ export default function setupVitePlugins(options: SlidevOptions): Plugin[] {
       return undefined
     }
   }
-  const app = createApp({ agent: createClaudeCodeAgent(), cwd: options.userRoot, locate })
+  // Test hook: run a stand-in script instead of the real CLI.
+  const fake = process.env.BETTER_SLIDE_FAKE_AGENT
+  const agent = createClaudeCodeAgent(fake ? { launcher: { command: process.execPath, args: [fake] } } : {})
+  const app = createApp({ agent, cwd: options.userRoot, locate })
   return [
     {
       name: 'better-slide:server',
