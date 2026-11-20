@@ -1,6 +1,8 @@
 ---
 theme: default
 title: Demo deck
+addons:
+  - better-slide
 ---
 
 # Demo deck
