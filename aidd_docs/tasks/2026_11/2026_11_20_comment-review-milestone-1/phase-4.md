@@ -71,8 +71,8 @@ status: pending
 
 > Keep what the real CLI does when launched headless.
 
-1. Run one minimal prompt against the real CLI with the safe environment, once, and note the output format and the login state seen.
-2. Write `0002-agent-headless-launch.md` with that outcome, saying plainly what could not be verified.
+1. Read the real CLI's help and version output only, and note the headless flags and output formats it documents. Send no prompt to it, because that would spend the user's subscription.
+2. Write `0002-agent-headless-launch.md` with that outcome, saying plainly that a real run under the user's login is unverified.
 
 ## Test acceptance criteria
 
@@ -81,4 +81,4 @@ status: pending
 | 1 | The interface names no CLI and a second adapter could implement it unchanged. |
 | 2 | The built environment contains neither API-key variable, and a minimal environment still finds the CLI. |
 | 3 | A fake CLI run yields running then finished, an erroring one yields failed, and a cancel stops the process. |
-| 4 | The decision record states what the real CLI printed and what remains unverified. |
+| 4 | The decision record states what the CLI's help documents and says a real run is unverified. |
