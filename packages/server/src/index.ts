@@ -1,15 +1,19 @@
 import { getRequestListener } from '@hono/node-server'
 import { Hono } from 'hono'
+import { registerReviewRoutes, type ReviewDeps } from './routes.ts'
 import type { IncomingMessage, ServerResponse } from 'node:http'
+
+export type { ReviewDeps, RunStatus } from './routes.ts'
 
 export const API_PREFIX = '/__better-slide'
 
 export type Next = (error?: unknown) => void
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: Next) => void
 
-export function createApp(): Hono {
+export function createApp(deps?: ReviewDeps): Hono {
   const app = new Hono().basePath(API_PREFIX)
   app.get('/ping', (c) => c.json({ ok: true }))
+  if (deps) registerReviewRoutes(app, deps)
   return app
 }
 

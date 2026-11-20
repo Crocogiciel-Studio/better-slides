@@ -7,6 +7,8 @@
   "engines": { "slidev": ">=0.50.0" },
   "dependencies": {
     "@better-slide/server": "workspace:*",
+    "@better-slide/agents": "workspace:*",
+    "@better-slide/review": "workspace:*",
     "@better-slide/shared": "workspace:*"
   }
 }
