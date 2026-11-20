@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildPrompt } from './prompt.ts'
+import { excerpt } from '@better-slide/shared'
 import { locateLine } from './locate.ts'
 
 describe('buildPrompt', () => {
@@ -31,5 +32,17 @@ describe('locateLine', () => {
   it('gives up when the text is not in the slide', () => {
     expect(locateLine(file, slide2, 'nothing like it')).toBeUndefined()
     expect(locateLine(file, 'absent slide', 'x')).toBeUndefined()
+  })
+
+  it('matches a paragraph longer than the excerpt limit despite the ellipsis', () => {
+    const long = 'word '.repeat(60).trim()
+    const f = `---\n---\n\n# T\n\n${long}\n`
+    expect(locateLine(f, `# T\n\n${long}`, excerpt(long))).toBe(6)
+  })
+
+  it('matches rendered text against inline markdown', () => {
+    const body = '# T\n\nUse **bold** and `code` with [a link](https://x.y) here'
+    const f = `---\n---\n\n${body}\n`
+    expect(locateLine(f, body, 'Use bold and code with a link here')).toBe(6)
   })
 })
