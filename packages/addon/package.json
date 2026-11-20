@@ -6,6 +6,7 @@
   "keywords": ["slidev-addon", "slidev"],
   "engines": { "slidev": ">=0.50.0" },
   "dependencies": {
-    "@better-slide/server": "workspace:*"
+    "@better-slide/server": "workspace:*",
+    "@better-slide/shared": "workspace:*"
   }
 }
