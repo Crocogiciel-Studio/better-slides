@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "keywords": ["slidev-addon", "slidev"],
-  "engines": { "slidev": ">=0.50.0" },
+  "engines": { "slidev": ">=53.1.0" },
   "dependencies": {
     "@better-slide/server": "workspace:*",
     "@better-slide/agents": "workspace:*",
