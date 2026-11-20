@@ -17,7 +17,7 @@ pnpm demo          # demo deck on http://localhost:3030
 
 Behind a proxy that resets connections, `pnpm install` can fail with `ECONNRESET` or finish with empty packages. `pnpm-workspace.yaml` sets `networkConcurrency: 4` and `fetchRetries: 6`. If it still fails, rerun with `--network-concurrency=2`, then check that `@slidev/cli` has a `dist/` folder.
 
-To try the review loop without spending a subscription, point the addon at the fake CLI: `BETTER_SLIDE_FAKE_AGENT=$PWD/packages/agents/test/fixtures/fake-claude.mjs pnpm demo`.
+To try the review loop without spending a subscription, point the addon at the fake CLI (honoured only with the test switch `BETTER_SLIDE_TEST=1`): `BETTER_SLIDE_TEST=1 BETTER_SLIDE_FAKE_AGENT=$PWD/packages/agents/test/fixtures/fake-claude.mjs pnpm demo`.
 
 ## Ways to contribute
 
