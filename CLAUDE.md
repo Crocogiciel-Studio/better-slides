@@ -62,6 +62,10 @@
 @aidd_docs/memory/testing.md
 @aidd_docs/memory/vcs.md
 
+<!-- read on demand, not auto-loaded -->
+- aidd_docs/memory/internal/decisions/0001-element-source-link.md
+- aidd_docs/memory/internal/decisions/0002-agent-headless-launch.md
+
 <!-- folders other plugins own, read on demand -->
 - aidd_docs/tasks/
 
