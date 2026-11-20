@@ -1,0 +1,39 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+.output/
+*.tsbuildinfo
+
+# secrets and local config - never commit
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+.npmrc
+credentials.json
+auth.json
+.claude/settings.local.json
+
+# local data
+*.sqlite
+*.sqlite-journal
+*.db
+
+# logs and caches
+*.log
+.cache/
+.vite/
+coverage/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
