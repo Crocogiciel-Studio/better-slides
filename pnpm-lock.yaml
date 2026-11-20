@@ -181,6 +181,9 @@ importers:
       happy-dom:
         specifier: ^21.0.4
         version: 21.0.4
+      playwright-core:
+        specifier: 1.65.1
+        version: 1.65.1
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
@@ -2980,6 +2983,11 @@ packages:
 
   plantuml-encoder@1.4.0:
     resolution: {integrity: sha512-sxMwpDw/ySY1WB2CE3+IdMuEcWibJ72DDOsXLkSmEaSzwEUaYBT6DWgOfBiHGCux4q433X6+OEFWjlVqp7gL6g==}
+
+  playwright-core@1.65.1:
+    resolution: {integrity: sha512-hqPpz7blSMPxWVdoeE1yiBSzXsKiVOd2k+kjCvmUywD2GPO2Dd9HfcWnq9NN0GHbNZDFgZ9JfBFr+X5/BLo0qw==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   points-on-curve@0.2.0:
     resolution: {integrity: sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==}
@@ -6899,6 +6907,8 @@ snapshots:
       pathe: 2.0.3
 
   plantuml-encoder@1.4.0: {}
+
+  playwright-core@1.65.1: {}
 
   points-on-curve@0.2.0: {}
 

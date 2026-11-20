@@ -9,9 +9,9 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
-    "types": ["node"],
+    "types": ["node", "vite/client"],
     "allowJs": true,
     "checkJs": true
   },
-  "include": ["packages/*/src", "packages/*/setup", "packages/*/components/*.ts", "packages/*/components/*.vue", "packages/*/*.vue", "packages/agents/test/fixtures/*.mjs", "vitest.config.ts"]
+  "include": ["packages/*/e2e/*.ts", "packages/*/src", "packages/*/setup", "packages/*/components/*.ts", "packages/*/components/*.vue", "packages/*/*.vue", "packages/agents/test/fixtures/*.mjs", "vitest.config.ts"]
 }
