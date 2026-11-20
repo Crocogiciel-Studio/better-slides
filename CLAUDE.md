@@ -62,6 +62,9 @@
 @aidd_docs/memory/testing.md
 @aidd_docs/memory/vcs.md
 
+<!-- folders other plugins own, read on demand -->
+- aidd_docs/tasks/
+
 <!-- aidd_project_memory:end -->
 
 - Load `aidd_docs/memory/external/*` only when asked.
