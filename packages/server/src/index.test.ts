@@ -102,4 +102,12 @@ describe('request guard over raw HTTP', () => {
     const res = await raw(base, '/comments', { headers: { host: 'evil.example' } })
     expect(res.status).toBe(403)
   })
+
+  it('stays loopback-only: a network host name is refused, so --host cannot expose the API', async () => {
+    const base = await startApp()
+    for (const host of ['192.168.1.20:5173', 'my-laptop.local:5173', '0.0.0.0:5173']) {
+      expect((await raw(base, '/comments', { headers: { host } })).status).toBe(403)
+    }
+    expect((await raw(base, '/comments', { headers: { host: 'localhost:5173' } })).status).toBe(200)
+  })
 })

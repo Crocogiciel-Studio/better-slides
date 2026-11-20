@@ -2,14 +2,10 @@ import type { MiddlewareHandler } from 'hono'
 
 const LOOPBACK = ['localhost', '127.0.0.1', '[::1]']
 
-export interface GuardOptions {
-  /** Extra hostnames the server is reached by (for example Vite's `--host`). Loopback is always allowed. */
-  allowedHosts?: string[]
-}
-
 /**
  * Keeps other websites from driving the API through the user's browser.
- * - The Host must be loopback or listed: resists DNS rebinding (403).
+ * - The Host must be loopback: resists DNS rebinding (403). The API is loopback-only, so a deck served
+ *   on the network (`--host`) cannot use it.
  * - A present Origin must equal the server's own origin (403). No Origin means a non-browser
  *   client such as curl, which is allowed: only a browser can be steered by a foreign page.
  * - `Sec-Fetch-Site`, when sent, must not be cross-site (403).
@@ -17,11 +13,10 @@ export interface GuardOptions {
  *   form or `text/plain` request cannot send without a CORS preflight.
  * No CORS header is ever set, so a foreign page cannot read any response either.
  */
-export function guard(options: GuardOptions = {}): MiddlewareHandler {
-  const allowed = new Set([...LOOPBACK, ...(options.allowedHosts ?? []).map((h) => h.toLowerCase())])
+export function guard(): MiddlewareHandler {
   return async (c, next) => {
     const url = new URL(c.req.url)
-    if (!allowed.has(url.hostname.toLowerCase())) return c.json({ error: 'Host not allowed' }, 403)
+    if (!LOOPBACK.includes(url.hostname.toLowerCase())) return c.json({ error: 'Host not allowed' }, 403)
 
     const origin = c.req.header('origin')
     if (origin !== undefined) {

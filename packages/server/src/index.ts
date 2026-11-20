@@ -1,10 +1,9 @@
 import { getRequestListener } from '@hono/node-server'
 import { Hono } from 'hono'
-import { guard, type GuardOptions } from './guard.ts'
+import { guard } from './guard.ts'
 import { registerReviewRoutes, type ReviewDeps } from './routes.ts'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-export type { GuardOptions } from './guard.ts'
 export type { ReviewDeps, RunStatus } from './routes.ts'
 
 export const API_PREFIX = '/__better-slide'
@@ -12,9 +11,9 @@ export const API_PREFIX = '/__better-slide'
 export type Next = (error?: unknown) => void
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: Next) => void
 
-export function createApp(deps?: ReviewDeps, options?: GuardOptions): Hono {
+export function createApp(deps?: ReviewDeps): Hono {
   const app = new Hono().basePath(API_PREFIX)
-  app.use('*', guard(options))
+  app.use('*', guard())
   app.get('/ping', (c) => c.json({ ok: true }))
   if (deps) registerReviewRoutes(app, deps)
   return app
