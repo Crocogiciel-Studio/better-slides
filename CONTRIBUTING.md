@@ -10,7 +10,7 @@ Requires Node 22 and pnpm 12.
 
 ```bash
 pnpm install       # the workspace file already sets low network concurrency
-pnpm test          # Vitest, no real CLI or login needed
+pnpm test          # Vitest, no real CLI or login needed; the Chromium test skips when no Chromium is found
 pnpm typecheck     # vue-tsc --noEmit: packages, .vue files and the fake CLI
 pnpm demo          # demo deck on http://localhost:3030
 ```

@@ -11,7 +11,7 @@ pnpm install
 pnpm demo        # Slidev on http://localhost:3030 with the addon enabled
 ```
 
-In the preview, use the Review panel (bottom right): click **Comment**, click an element, write a note, **Add**. Stack as many as you like, then **Send stack**. Claude Code (`claude`, installed and logged in) edits `slides.md` and the preview hot-reloads.
+In the preview, move the mouse to the bottom-left to reveal Slidev's navigation bar and press the **Review** button (speech bubble, or press `r`). A sidebar opens on the right and the slide shrinks to make room; it is never covered. Click an element on the slide, write a note in the sidebar, **Add**. The sidebar lists your comments by slide with each note in full; stack as many as you like, then **Send stack**. Press the button or `r` again, or the close icon, to leave review mode. The arrow keys, space and page keys keep navigating the deck after every button press; click the note field to type, and press `Escape` to leave it. Claude Code (`claude`, installed and logged in) edits `slides.md` and the preview hot-reloads.
 
 The addon is not published yet: `slidev-addon-better-slide` is private (version 0.0.0), so `npm install` cannot fetch it. It works only inside this workspace. To review your own deck:
 
