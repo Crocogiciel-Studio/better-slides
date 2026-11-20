@@ -56,8 +56,9 @@ watch(selecting, (on) => {
 onMounted(() => {
   refresh()
   unfollow = api.follow((s) => {
+    const changed = s.state !== status.value.state
     status.value = s
-    refresh()
+    if (changed) refresh()
   })
 })
 onBeforeUnmount(() => {
