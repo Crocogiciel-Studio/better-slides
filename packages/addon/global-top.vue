@@ -72,6 +72,7 @@ const add = (note: string) =>
     await refresh()
   })
 const remove = (id: string) => guarded(async () => (await api.remove(id), refresh()))
+const cancel = () => guarded(() => api.cancel())
 const send = () => guarded(async () => (await api.send(), refresh()))
 </script>
 
@@ -84,7 +85,10 @@ const send = () => guarded(async () => (await api.send(), refresh()))
       </button>
     </div>
     <StackPanel :comments="comments" :locked="locked" @remove="remove" />
-    <RunStatus :status="status" />
+    <div class="run">
+      <RunStatus :status="status" />
+      <button v-if="status.state === 'running'" class="cancel" data-testid="cancel" @click="cancel">Cancel</button>
+    </div>
     <div v-if="error" class="error" data-testid="error">{{ error }}</div>
     <button class="send" data-testid="send" :disabled="!canSend" @click="send">Send stack</button>
   </div>
@@ -129,6 +133,15 @@ button {
 button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+.run {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cancel {
+  border-color: #b91c1c;
+  background: #b91c1c;
 }
 .send {
   width: 100%;

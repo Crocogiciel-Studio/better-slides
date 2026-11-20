@@ -28,6 +28,7 @@ export function createClient(fetchFn: typeof fetch = (...a) => fetch(...a), base
     add: (comment: Omit<Comment, 'line'>) => call<StackItem>('POST', '/comments', comment),
     remove: (id: string) => call<{ ok: true }>('DELETE', `/comments/${id}`),
     send: () => call<{ ok: true }>('POST', '/send'),
+    cancel: () => call<{ ok: true }>('POST', '/cancel'),
     status: () => call<RunStatus>('GET', '/status'),
     /** Follows run status. Returns an unsubscribe function. */
     follow(onStatus: (s: RunStatus) => void): () => void {

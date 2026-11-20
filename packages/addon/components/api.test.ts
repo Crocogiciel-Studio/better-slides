@@ -12,6 +12,17 @@ function client() {
 }
 
 describe('api client', () => {
+  it('cancels the running agent', async () => {
+    let cancelled = 0
+    const running: Agent = { name: 'fake', run: () => ({ cancel: () => void cancelled++, done: Promise.resolve() }) }
+    const app = createApp({ agent: running, cwd: '/deck' })
+    const api = createClient(((url: string, init?: RequestInit) => app.request(url, init)) as unknown as typeof fetch, BASE)
+    await api.add({ slide: 1, text: 'Hello', selector: 'p', note: 'Change' })
+    await api.send()
+    await api.cancel()
+    expect(cancelled).toBe(1)
+  })
+
   it('reflects the stack and the run status of the server', async () => {
     const api = client()
     const added = await api.add({ slide: 1, text: 'Hello', selector: 'p', note: 'Change' })
