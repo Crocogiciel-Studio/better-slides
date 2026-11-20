@@ -34,17 +34,29 @@ function ask(shell: string, flags: string[], name: string, env: NodeJS.ProcessEn
   })
 }
 
+/** Extra interactive attempts per shell, after the plain login one. bash `-i -l` skips `~/.bashrc` unless `.bash_profile` sources it, so it also gets `-i`. */
+const FALLBACKS: Record<string, string[][]> = {
+  zsh: [['-i', '-l', '-c']],
+  bash: [['-i', '-l', '-c'], ['-i', '-c']],
+}
+
+const SAFE_NAME = /^[A-Za-z0-9._-]+$/
+
 /**
  * Finds an executable through a login shell: a process launched outside the user's
  * interactive shell lacks its `PATH`. zsh and bash read `~/.zshrc` and `~/.bashrc` only when
- * interactive, so they get a second, interactive attempt. The path is read between unique
+ * interactive, so they get further, interactive attempts. The path is read between unique
  * markers, so rc-file output is ignored. Resolves `undefined` when it is not found.
+ * `name` ends up in a shell string, so it must be a plain command name.
  */
 export async function resolveCommand(name: string, options: ResolveOptions = {}): Promise<string | undefined> {
+  if (!SAFE_NAME.test(name)) throw new Error(`Invalid command name: ${JSON.stringify(name)}`)
   const env = options.env ?? process.env
   const shell = options.shell ?? env.SHELL ?? '/bin/sh'
   const timeout = options.timeoutMs ?? 10_000
-  const found = await ask(shell, ['-l', '-c'], name, env, timeout)
-  if (found || !['zsh', 'bash'].includes(basename(shell))) return found
-  return ask(shell, ['-i', '-l', '-c'], name, env, timeout)
+  for (const flags of [['-l', '-c'], ...(FALLBACKS[basename(shell)] ?? [])]) {
+    const found = await ask(shell, flags, name, env, timeout)
+    if (found) return found
+  }
+  return undefined
 }

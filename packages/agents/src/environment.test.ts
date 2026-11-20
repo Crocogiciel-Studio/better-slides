@@ -46,19 +46,19 @@ describe('resolveCommand', () => {
     expect(await resolveCommand('claude', { shell, env: { PATH: '' } })).toBe('/opt/tools/claude')
   })
 
-  /** A shell named `zsh` that only sees the CLI when interactive, like a PATH set in ~/.zshrc. */
-  function rcOnlyShell(afterNoise = 'true'): string {
+  /** A shell that only sees the CLI when interactive (`needs` is the case pattern over its flags), like a PATH set in an rc file. */
+  function rcOnlyShell(afterNoise = 'true', name = 'zsh', needs = '*" -i "*'): string {
     const dir = mkdtempSync(join(tmpdir(), 'rc-'))
     const bin = join(dir, 'bin')
     mkdirSync(bin)
     writeFileSync(join(bin, 'claude'), '#!/bin/sh\n')
     chmodSync(join(bin, 'claude'), 0o755)
-    const path = join(dir, 'zsh')
+    const path = join(dir, name)
     writeFileSync(
       path,
       `#!/bin/sh
 for a; do last=$a; done
-case " $* " in *" -i "*) echo "rc noise /fake/path"; PATH="${bin}:$PATH"; ${afterNoise};; esac
+case " $* " in ${needs}) echo "rc noise /fake/path"; PATH="${bin}:$PATH"; ${afterNoise};; esac
 exec /bin/sh -c "$last"
 `,
     )
@@ -70,6 +70,18 @@ exec /bin/sh -c "$last"
     const shell = rcOnlyShell()
     const found = await resolveCommand('claude', { shell, env: { PATH: '/usr/bin:/bin' } })
     expect(found).toMatch(/\/rc-[^/]+\/bin\/claude$/)
+  })
+
+  it('falls back to a non-login interactive bash for a PATH set only in ~/.bashrc', async () => {
+    const shell = rcOnlyShell('true', 'bash', '*" -i -c "*')
+    const found = await resolveCommand('claude', { shell, env: { PATH: '/usr/bin:/bin' } })
+    expect(found).toMatch(/\/rc-[^/]+\/bin\/claude$/)
+  })
+
+  it('refuses a name that is not a plain command', async () => {
+    for (const name of ['claude; rm -rf ~', '$(id)', 'a b', '', '`x`']) {
+      await expect(resolveCommand(name, { shell: '/bin/false' })).rejects.toThrow('Invalid command name')
+    }
   })
 
   it('gives up after the timeout when the rc file hangs', async () => {
