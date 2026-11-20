@@ -5,7 +5,7 @@ import { guard } from './guard.ts'
 import { registerReviewRoutes, type ReviewDeps } from './routes.ts'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
-export type { ReviewDeps, RunStatus } from './routes.ts'
+export type { ReviewDeps } from './routes.ts'
 
 /** A comment is a few KB at most. */
 export const MAX_BODY_BYTES = 64 * 1024

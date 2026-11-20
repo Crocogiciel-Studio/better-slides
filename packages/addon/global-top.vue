@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { createClient, type RunStatus as Status, type StackItem } from './components/api'
+import type { RunStatus as Status, StackItem } from '@better-slide/shared'
+import { createClient } from './components/api'
 import CommentPopover from './components/CommentPopover.vue'
 import RunStatus from './components/RunStatus.vue'
-import { startSelection, type Pick } from './components/selection'
+import { startSelection, type ElementPick } from './components/selection'
 import StackPanel from './components/StackPanel.vue'
 
 const api = createClient()
 const selecting = ref(false)
-const pending = ref<{ pick: Pick; x: number; y: number }>()
+const pending = ref<{ pick: ElementPick; x: number; y: number }>()
 const comments = ref<StackItem[]>([])
 const locked = ref(false)
 const status = ref<Status>({ state: 'idle' })

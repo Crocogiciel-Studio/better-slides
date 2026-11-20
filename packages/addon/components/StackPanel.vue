@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { StackItem } from './api'
+import type { StackItem } from '@better-slide/shared'
 
 defineProps<{ comments: StackItem[]; locked: boolean }>()
 const emit = defineEmits<{ remove: [id: string] }>()

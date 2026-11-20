@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { RunStatus } from './api'
+import type { RunStatus } from '@better-slide/shared'
 
 const props = defineProps<{ status: RunStatus }>()
 const text = computed(() => {

@@ -1,14 +1,8 @@
 import type { Agent, AgentEvent, AgentRun } from '@better-slide/agents'
 import { buildPrompt, createStack, StackLockedError } from '@better-slide/review'
-import { validateComment } from '@better-slide/shared'
+import { validateComment, type RunStatus } from '@better-slide/shared'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
-
-export type RunStatus =
-  | { state: 'idle' }
-  | { state: 'running'; message?: string }
-  | { state: 'finished' }
-  | { state: 'failed'; reason: string }
 
 export interface ReviewDeps {
   /** The only way to reach an AI CLI. */

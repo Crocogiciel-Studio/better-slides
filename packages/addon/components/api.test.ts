@@ -28,7 +28,6 @@ describe('api client', () => {
     const added = await api.add({ slide: 1, text: 'Hello', selector: 'p', note: 'Change' })
     expect((await api.list()).comments).toEqual([added])
     await api.send()
-    expect(await api.status()).toEqual({ state: 'running' })
     expect((await api.list()).locked).toBe(true)
     await expect(api.remove(added.id)).rejects.toThrow(ApiError)
   })

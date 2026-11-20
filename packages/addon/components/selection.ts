@@ -1,8 +1,7 @@
 import { excerpt, type Comment } from '@better-slide/shared'
 
 /** What a click yields before the author writes a note. */
-export type Pick = Pick_<Comment, 'slide' | 'text' | 'selector'>
-type Pick_<T, K extends keyof T> = { [P in K]: T[P] }
+export type ElementPick = Pick<Comment, 'slide' | 'text' | 'selector'>
 
 export const UI_ATTRIBUTE = 'data-better-slide-ui'
 const SLIDE_ATTRIBUTE = 'data-slidev-no'
@@ -36,7 +35,7 @@ function describe(el: Element): string {
   return text || el.getAttribute('alt') || el.getAttribute('aria-label') || `<${el.tagName.toLowerCase()}>`
 }
 
-export function pickFromElement(raw: Element): Pick | undefined {
+export function pickFromElement(raw: Element): ElementPick | undefined {
   if (raw.closest(`[${UI_ATTRIBUTE}]`)) return undefined
   const el = resolveTarget(raw)
   const slide = slideOf(el)
@@ -48,7 +47,7 @@ export function pickFromElement(raw: Element): Pick | undefined {
  * Selection mode: highlights the hovered element and reports a click as a pick.
  * Returns a stop function that removes the highlight and every listener.
  */
-export function startSelection(onPick: (pick: Pick, element: Element) => void, doc: Document = document): () => void {
+export function startSelection(onPick: (pick: ElementPick, element: Element) => void, doc: Document = document): () => void {
   let highlighted: Element | undefined
   const clear = () => {
     highlighted?.removeAttribute(HIGHLIGHT_ATTRIBUTE)

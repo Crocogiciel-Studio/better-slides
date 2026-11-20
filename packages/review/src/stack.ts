@@ -1,6 +1,4 @@
-import type { Comment } from '@better-slide/shared'
-
-export type StackItem = Comment & { id: string }
+import type { Comment, StackItem } from '@better-slide/shared'
 
 export class StackLockedError extends Error {
   constructor() {

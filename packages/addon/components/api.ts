@@ -1,11 +1,4 @@
-import type { Comment } from '@better-slide/shared'
-
-export type StackItem = Comment & { id: string }
-export type RunStatus =
-  | { state: 'idle' }
-  | { state: 'running'; message?: string }
-  | { state: 'finished' }
-  | { state: 'failed'; reason: string }
+import type { Comment, RunStatus, StackItem } from '@better-slide/shared'
 
 export const BASE = '/__better-slide'
 
@@ -29,7 +22,6 @@ export function createClient(fetchFn: typeof fetch = (...a) => fetch(...a), base
     remove: (id: string) => call<{ ok: true }>('DELETE', `/comments/${id}`),
     send: () => call<{ ok: true }>('POST', '/send'),
     cancel: () => call<{ ok: true }>('POST', '/cancel'),
-    status: () => call<RunStatus>('GET', '/status'),
     /** Follows run status. Returns an unsubscribe function. */
     follow(onStatus: (s: RunStatus) => void): () => void {
       const source = new EventSource(`${base}/events`)

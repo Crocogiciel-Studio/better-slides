@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { nextTick, onMounted, ref } from 'vue'
-import type { Pick } from './selection'
+import type { ElementPick } from './selection'
 
-defineProps<{ pick: Pick; x: number; y: number }>()
+defineProps<{ pick: ElementPick; x: number; y: number }>()
 const emit = defineEmits<{ add: [note: string]; cancel: [] }>()
 
 const note = ref('')
