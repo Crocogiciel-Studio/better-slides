@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+  - examples/*
+# Survives the sandbox proxy (ECONNRESET / incomplete installs under parallel downloads).
+networkConcurrency: 4
+fetchRetries: 6
+allowBuilds:
+  esbuild: true
