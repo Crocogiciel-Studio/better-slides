@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -42,8 +42,41 @@ describe('resolveCommand', () => {
   }
 
   it('finds the CLI through the login shell even with a minimal environment', async () => {
-    const shell = fakeShell('echo "welcome banner"; echo /opt/tools/claude')
+    const shell = fakeShell('for a; do last=$a; done; echo "welcome banner"; command() { echo /opt/tools/claude; }; eval "$last"')
     expect(await resolveCommand('claude', { shell, env: { PATH: '' } })).toBe('/opt/tools/claude')
+  })
+
+  /** A shell named `zsh` that only sees the CLI when interactive, like a PATH set in ~/.zshrc. */
+  function rcOnlyShell(afterNoise = 'true'): string {
+    const dir = mkdtempSync(join(tmpdir(), 'rc-'))
+    const bin = join(dir, 'bin')
+    mkdirSync(bin)
+    writeFileSync(join(bin, 'claude'), '#!/bin/sh\n')
+    chmodSync(join(bin, 'claude'), 0o755)
+    const path = join(dir, 'zsh')
+    writeFileSync(
+      path,
+      `#!/bin/sh
+for a; do last=$a; done
+case " $* " in *" -i "*) echo "rc noise /fake/path"; PATH="${bin}:$PATH"; ${afterNoise};; esac
+exec /bin/sh -c "$last"
+`,
+    )
+    chmodSync(path, 0o755)
+    return path
+  }
+
+  it('falls back to an interactive shell for a PATH set only in the rc file, ignoring rc noise', async () => {
+    const shell = rcOnlyShell()
+    const found = await resolveCommand('claude', { shell, env: { PATH: '/usr/bin:/bin' } })
+    expect(found).toMatch(/\/rc-[^/]+\/bin\/claude$/)
+  })
+
+  it('gives up after the timeout when the rc file hangs', async () => {
+    const shell = rcOnlyShell('sleep 5')
+    const started = Date.now()
+    expect(await resolveCommand('claude', { shell, env: { PATH: '/usr/bin:/bin' }, timeoutMs: 300 })).toBeUndefined()
+    expect(Date.now() - started).toBeLessThan(3000)
   })
 
   it('resolves undefined when the CLI is missing', async () => {
