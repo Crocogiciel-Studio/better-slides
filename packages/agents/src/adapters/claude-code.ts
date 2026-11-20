@@ -8,7 +8,14 @@ export interface ClaudeCodeOptions {
   env?: NodeJS.ProcessEnv
   /** Login shell used to find the CLI. */
   shell?: string
+  /** A run still going after this long is stopped and fails. Defaults to 10 minutes. */
+  timeoutMs?: number
+  /** Wait between SIGTERM and SIGKILL when stopping a run. Defaults to 3 s. */
+  killGraceMs?: number
 }
+
+const DEFAULT_TIMEOUT_MS = 10 * 60_000
+const DEFAULT_KILL_GRACE_MS = 3_000
 
 const CLI_ARGS = [
   '-p',
@@ -42,11 +49,20 @@ export function createClaudeCodeAgent(options: ClaudeCodeOptions = {}): Agent {
     run(request: AgentRequest, onEvent: (event: AgentEvent) => void): AgentRun {
       let child: ReturnType<typeof spawn> | undefined
       let cancelled = false
+      let timedOut = false
+      let killTimer: NodeJS.Timeout | undefined
       let settled = false
       const emit = (event: AgentEvent) => {
         if (settled) return
         if (event.type === 'finished' || event.type === 'failed') settled = true
         onEvent(event)
+      }
+
+      /** SIGTERM now, SIGKILL if the process is still alive after the grace period. */
+      const stop = () => {
+        if (!child || child.exitCode !== null || killTimer) return
+        child.kill('SIGTERM')
+        killTimer = setTimeout(() => child?.kill('SIGKILL'), options.killGraceMs ?? DEFAULT_KILL_GRACE_MS)
       }
 
       const done = (async () => {
@@ -65,6 +81,10 @@ export function createClaudeCodeAgent(options: ClaudeCodeOptions = {}): Agent {
             stdio: ['pipe', 'pipe', 'pipe'],
           })
           child = proc
+          const runTimer = setTimeout(() => {
+            timedOut = true
+            stop()
+          }, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
           let stderr = ''
           let reported: string | undefined
           let buffer = ''
@@ -80,11 +100,15 @@ export function createClaudeCodeAgent(options: ClaudeCodeOptions = {}): Agent {
             }
           })
           proc.on('error', (error: NodeJS.ErrnoException) => {
+            clearTimeout(runTimer)
             emit({ type: 'failed', reason: error.code === 'ENOENT' ? 'claude CLI not found' : error.message })
             resolve()
           })
           proc.on('close', (code) => {
+            clearTimeout(runTimer)
+            clearTimeout(killTimer)
             if (cancelled) emit({ type: 'failed', reason: 'cancelled' })
+            else if (timedOut) emit({ type: 'failed', reason: `agent timed out after ${Math.round((options.timeoutMs ?? DEFAULT_TIMEOUT_MS) / 1000)} s` })
             else if (code === 0 && !reported) emit({ type: 'finished' })
             else emit({ type: 'failed', reason: reported ?? (stderr.trim() || `agent exited with code ${code}`) })
             resolve()
@@ -99,7 +123,7 @@ export function createClaudeCodeAgent(options: ClaudeCodeOptions = {}): Agent {
         done,
         cancel() {
           cancelled = true
-          child?.kill('SIGTERM')
+          stop()
         },
       }
     },

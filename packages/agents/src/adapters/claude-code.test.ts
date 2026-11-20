@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -48,12 +48,49 @@ describe('claude-code adapter', () => {
     expect(names).not.toContain('OPENAI_API_KEY')
   })
 
+  const until = async (check: () => boolean) => {
+    for (let i = 0; i < 200 && !check(); i++) await new Promise((r) => setTimeout(r, 25))
+    expect(check()).toBe(true)
+  }
+
   it('stops the child process on cancel', async () => {
     const events: AgentEvent[] = []
     const handle = createClaudeCodeAgent({ launcher }).run({ prompt: 'HANG', cwd: tmpdir() }, (e) => events.push(e))
-    await new Promise((r) => setTimeout(r, 400))
+    await until(() => events.some((e) => e.type === 'running'))
     handle.cancel()
     await handle.done
     expect(events.at(-1)).toEqual({ type: 'failed', reason: 'cancelled' })
+  })
+
+  it('escalates to SIGKILL when the CLI ignores SIGTERM', async () => {
+    const events: AgentEvent[] = []
+    const handle = createClaudeCodeAgent({ launcher, killGraceMs: 200 }).run({ prompt: 'IGNORE_TERM', cwd: tmpdir() }, (e) =>
+      events.push(e),
+    )
+    await until(() => events.some((e) => e.type === 'progress'))
+    handle.cancel()
+    await handle.done
+    expect(events.at(-1)).toEqual({ type: 'failed', reason: 'cancelled' })
+  })
+
+  it('fails the run and stops the CLI when it exceeds the timeout', async () => {
+    const events = await run('HANG', { timeoutMs: 300, killGraceMs: 200 })
+    expect(events.at(-1)).toEqual({ type: 'failed', reason: expect.stringContaining('timed out') })
+  })
+
+  it('fails with the reported error when the CLI exits 0 but flags is_error', async () => {
+    const events = await run('ERROR_RESULT')
+    expect(events.at(-1)).toEqual({ type: 'failed', reason: 'agent said no' })
+  })
+
+  it('does not spawn when cancelled while the CLI is being looked up', async () => {
+    const shell = join(mkdtempSync(join(tmpdir(), 'shell-')), 'sh')
+    writeFileSync(shell, '#!/bin/sh\nfor a; do last=$a; done; sleep 0.3; command() { echo /nonexistent/claude; }; eval "$last"\n')
+    chmodSync(shell, 0o755)
+    const events: AgentEvent[] = []
+    const handle = createClaudeCodeAgent({ shell }).run({ prompt: 'x', cwd: tmpdir() }, (e) => events.push(e))
+    handle.cancel()
+    await handle.done
+    expect(events).toEqual([{ type: 'failed', reason: 'cancelled' }])
   })
 })
