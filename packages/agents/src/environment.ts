@@ -1,13 +1,15 @@
 import { execFile } from 'node:child_process'
 
-/** Variables that would make an agent CLI bill an API instead of the user's subscription. */
-export const STRIPPED_VARIABLES = ['ANTHROPIC_API_KEY', 'OPENAI_API_KEY'] as const
+const PROVIDER_PREFIXES = ['ANTHROPIC_', 'OPENAI_', 'CLAUDE_CODE_USE_']
 
-/** Copy of `parent` without any API-key variable. */
+/** True for variables that would make an agent CLI bill an API or another provider instead of the user's subscription. */
+export function isProviderVariable(name: string): boolean {
+  return PROVIDER_PREFIXES.some((prefix) => name.startsWith(prefix))
+}
+
+/** Copy of `parent` without any provider variable (`ANTHROPIC_*`, `OPENAI_*`, `CLAUDE_CODE_USE_*`). */
 export function buildAgentEnv(parent: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
-  const env = { ...parent }
-  for (const name of STRIPPED_VARIABLES) delete env[name]
-  return env
+  return Object.fromEntries(Object.entries(parent).filter(([name]) => !isProviderVariable(name)))
 }
 
 export interface ResolveOptions {

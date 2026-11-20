@@ -123,7 +123,7 @@ Manual install - the framework does not yet scaffold these automatically.
 3. Initialize the git repository and the monorepo (workspaces) with the `packages/` structure above.
 4. Create `examples/demo-deck` with Slidev, and check that `slidev` starts.
 5. Spike (done): one addon ships both a `setup/vite-plugins.ts` hook and a global layer. The rendered element → source link is not available out of the box, so the product ships slide + text excerpt + selector, plus a best-effort line found server-side. See [`0001-element-source-link.md`](memory/internal/decisions/0001-element-source-link.md).
-6. Headless launch (partly done): the adapter strips `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` and resolves the CLI through a login shell, tested with a fake CLI. A real run under a user login is unverified. See [`0002-agent-headless-launch.md`](memory/internal/decisions/0002-agent-headless-launch.md). Codex is not implemented.
+6. Headless launch (partly done): the adapter strips `ANTHROPIC_*`, `OPENAI_*` and `CLAUDE_CODE_USE_*` variables and resolves the CLI through a login shell, tested with a fake CLI. A real run under a user login is unverified. See [`0002-agent-headless-launch.md`](memory/internal/decisions/0002-agent-headless-launch.md). Codex is not implemented.
 7. Re-read Anthropic's and OpenAI's terms of use on subscription use by third-party tools before any release.
 
 ## Audit summary

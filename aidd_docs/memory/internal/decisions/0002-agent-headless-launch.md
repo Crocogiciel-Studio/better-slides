@@ -15,7 +15,7 @@ Status: accepted (2026-11-20). Based on `claude --version` (2.1.329) and `claude
 `claude -p --output-format stream-json --verbose --permission-mode acceptEdits --allowedTools Read,Edit,Write,Glob,Grep`, run in the deck folder, prompt written to stdin (keeps a long prompt out of the argument list, which `--allowedTools` would otherwise swallow).
 
 - Edits are accepted without a prompt; shell commands are not on the allow list.
-- The child environment is the parent's minus `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`, so the CLI uses the user's own login. Credentials are never read.
+- The child environment is the parent's minus every `ANTHROPIC_*`, `OPENAI_*` and `CLAUDE_CODE_USE_*` variable, so the CLI uses the user's own login. Credentials are never read.
 - The CLI is located through a login shell (`$SHELL -l -c 'command -v claude'`).
 - Event mapping: `assistant` text -> progress; `result` with `is_error` or a non-zero exit -> failed.
 

@@ -10,6 +10,22 @@ describe('buildAgentEnv', () => {
     expect(env).toEqual({ HOME: '/h' })
   })
 
+  it('drops every provider-routing variable and keeps unrelated ones', () => {
+    const provider = [
+      'ANTHROPIC_AUTH_TOKEN',
+      'ANTHROPIC_BASE_URL',
+      'ANTHROPIC_MODEL',
+      'CLAUDE_CODE_USE_BEDROCK',
+      'CLAUDE_CODE_USE_VERTEX',
+      'CLAUDE_CODE_USE_FOUNDRY',
+      'OPENAI_BASE_URL',
+      'OPENAI_ORG_ID',
+    ]
+    const keep = { PATH: '/bin', HOME: '/h', CLAUDE_CONFIG_DIR: '/c', ANTHROPIC: 'x', MY_OPENAI_KEY: 'k' }
+    const env = buildAgentEnv({ ...keep, ...Object.fromEntries(provider.map((n) => [n, 'v'])) })
+    expect(env).toEqual(keep)
+  })
+
   it('does not mutate the parent', () => {
     const parent = { ANTHROPIC_API_KEY: 'a' }
     buildAgentEnv(parent)

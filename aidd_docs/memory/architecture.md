@@ -17,7 +17,7 @@
 ## Constraints
 
 - Only the agent adapters know the AI CLIs.
-- Remove `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` from the CLI environment, or the CLI bills the API instead of the subscription.
+- Remove every `ANTHROPIC_*`, `OPENAI_*` and `CLAUDE_CODE_USE_*` variable from the CLI environment, or the CLI bills an API or another provider instead of the subscription.
 - Never read, copy or store CLI credentials.
 
 ## Gotchas

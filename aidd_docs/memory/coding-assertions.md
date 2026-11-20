@@ -9,7 +9,7 @@
 
 - `pnpm typecheck` and `pnpm test` pass.
 - Only `packages/agents` names an AI CLI (tests excepted). Other packages use the `Agent` interface.
-- The agent child environment never holds `ANTHROPIC_API_KEY` or `OPENAI_API_KEY` (`buildAgentEnv`).
+- The agent child environment never holds an `ANTHROPIC_*`, `OPENAI_*` or `CLAUDE_CODE_USE_*` variable (`buildAgentEnv`).
 - No code reads, stores, logs or returns CLI credentials.
 - Better Slide opens no network connection of its own: the only `fetch` is the same-origin client in `addon/components/api.ts`.
 - Packages are TypeScript ES modules that import with explicit `.ts` extensions.
