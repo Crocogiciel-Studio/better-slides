@@ -25,3 +25,16 @@
 | `pnpm test` (11 files, 76 tests) | 0 | |
 | `grep -rniE "claude\|codex" packages --include=*.ts --include=*.vue --include=*.mjs -l --exclude-dir=agents --exclude="*.test.ts"` (only agents name a CLI) | 1 | no match: pass |
 | `grep -rnE "ANTHROPIC_API_KEY\|OPENAI_API_KEY" packages -l --include=*.ts --include=*.vue --exclude-dir=agents --exclude="*.test.ts"` | 1 | no match: pass |
+
+## Round 3
+
+- Head: `5a04c90` (code and checks); `1c9db3f` adds docs only. Uncommitted changes at the check: none apart from this file and `run.md`.
+- Verdict: PASS for what ran. A real Claude Code run is still not verified.
+
+| Check | Exit | Failure |
+| --- | --- | --- |
+| `pnpm typecheck` | 0 | |
+| `pnpm test` (13 files, 94 tests, including the Chromium test) | 0 | |
+| `grep -rniE "claude\|codex" packages --include=*.ts --include=*.vue --include=*.mjs -l --exclude-dir=agents --exclude="*.test.ts"` | 1 | no match: pass |
+| `grep -rnE "ANTHROPIC_API_KEY\|OPENAI_API_KEY" packages -l --include=*.ts --include=*.vue --exclude-dir=agents --exclude="*.test.ts"` | 1 | no match: pass |
+| Spec lines on the review interface (bar, never covers, keyboard, grouped readable notes) | n/a | covered by the Chromium test and by viewing the screenshots, see Run 3 |

@@ -52,3 +52,17 @@
 | SIGKILL escalation, run timeout, throwing agent, `is_error`, cancel before spawn, bash `-i -c`, command-name check, prompt forging, `--host` refusal | vitest only | pass in the 76 tests |
 
 Not checked in a browser: the run timeout and the SIGKILL escalation (vitest with the stand-in only), the shell lookup with a real zsh or bash and a real `claude`, `--host` serving (refusal is pinned by a Host-header test, not by starting Slidev with `--host`), a deck split over several files, any second browser or the Slidev presenter and overview modes. A real Claude Code run with a login was never made: no prompt was sent to the real CLI.
+
+## Run 3 (integrated review interface, phase 8)
+
+- Head: `5a04c90` (code and browser test); `1c9db3f` adds docs only. `pnpm typecheck` exit 0; `pnpm test` exit 0, 13 files, 94 tests (including 11 Chromium tests and 7 `reviewState` tests).
+- Browser: real Chromium 1255 through `playwright-core` 1.65.1, two Slidev servers started by the test (3131 with the stand-in CLI via `BETTER_SLIDE_TEST=1`, 3132 plain deck without the addon). No prompt was sent to the real CLI. Screenshots (45) viewed one by one for 1280x720, 1920x1080 and 1024x640, light and dark, in these states: initial, review on, element selected with a note typed, 3 comments, 20 long comments, agent running, agent failed.
+
+| Task | Validation | Result |
+| ---- | ---------- | ------ |
+| 1 | `nav [data-testid=toggle]` exists, bar hidden until hover then opacity 1, no `[data-testid=panel]`, count badge shows 3 | pass |
+| 2 | `#slide-container.right <= sidebar.left` in every state at 3 sizes x 2 themes; slide narrower than without the sidebar; 20 comments: slide width unchanged, stack scrolls inside, no clipped note; sidebar background `rgb(18,18,18)` dark, `rgb(255,255,255)` light; close restores the full width | pass |
+| 3 | after toggle, select, Escape in the note field, add, remove, add with Enter, send, cancel, close: focus on BODY and ArrowRight then ArrowLeft change the slide; a click on the selected element does not advance; ArrowLeft/Right inside the note move the caret, not the slide | pass |
+| 4 | presenter (no toggle, no sidebar, `r` ignored) and overview: no console error or page error; plain Slidev: no toggle, ArrowRight works, no error | pass |
+
+Not checked: a real Claude Code run; Slidev other than 53.1.0; hash router mode and a non-root `base` (the play-mode check handles `base` in a unit test only); touch devices; the Chromium test skip path (written with `describe.skipIf`, not exercised because Chromium is installed here); the reload of the deck after a successful run with the sidebar open (verified by hand in Run 2 with the old UI only); screen readers; zoom other than 100 %. The Slidev bar wraps to two rows at 1024x640 with the sidebar open and the review button lands alone on the top row (Slidev's own wrapping, accepted).
