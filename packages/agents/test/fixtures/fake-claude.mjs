@@ -9,6 +9,7 @@ let prompt = ''
 process.stdin.setEncoding('utf8')
 process.stdin.on('data', (chunk) => (prompt += chunk))
 process.stdin.on('end', async () => {
+  /** @param {string} text */
   const say = (text) => console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text }] } }))
   if (process.env.FAKE_CLAUDE_ENV_OUT) {
     writeFileSync(process.env.FAKE_CLAUDE_ENV_OUT, JSON.stringify(Object.keys(process.env)))
