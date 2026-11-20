@@ -15,6 +15,10 @@ A Slidev author can review a running deck by attaching comments to slide element
 - The agent is found and runs even when Better Slide was not started from the author's interactive shell.
 - When an element cannot be tied to its exact line in the deck source, its comment carries the slide, the element's text and a selector instead.
 - The stack is locked while an agent run is in progress.
+- The review control lives in Slidev's own navigation bar, not in a floating card.
+- The review interface never covers the slides: the slide canvas stays fully visible and is resized to make room for the review sidebar.
+- Navigating the deck with the keyboard (arrows, page keys, space) keeps working after any interaction with the review interface, except while typing a note.
+- The pending comments are listed in a sidebar where each note is readable in full.
 
 ## Non-goals
 
@@ -34,6 +38,9 @@ A Slidev author can review a running deck by attaching comments to slide element
 - While the agent works, the author sees that it is running, and sees when it finished or failed.
 - No credential and no API-key value is read, stored or shown by Better Slide at any point.
 - The deck still opens in plain Slidev after a review.
+- With review mode on, the slide area is narrower and no part of the review interface overlaps it, at common window sizes, in light and dark mode.
+- After toggling review mode, selecting an element, adding, removing, sending and cancelling, the arrow keys still change the slide.
+- The sidebar shows the comments grouped by slide, each with its whole note, and stays usable with many comments.
 
 ## Open Questions
 

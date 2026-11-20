@@ -18,6 +18,7 @@ Source: `aidd_docs/tasks/2026_11/2026_11_20_comment-review-milestone-1/spec.md`
 | 5   | Review stack and server routes | [`phase-5.md`](./phase-5.md) | 2, 3, 4 |
 | 6   | Review panel | [`phase-6.md`](./phase-6.md) | 5 |
 | 7   | End to end and documentation | [`phase-7.md`](./phase-7.md) | 6 |
+| 8   | Integrated review interface | [`phase-8.md`](./phase-8.md) | 7 |
 
 ## External sources
 
