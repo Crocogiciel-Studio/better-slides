@@ -11,11 +11,13 @@ Requires Node 22 and pnpm 12.
 ```bash
 pnpm install       # the workspace file already sets low network concurrency
 pnpm test          # Vitest, no real CLI or login needed
-pnpm typecheck     # tsc --noEmit
+pnpm typecheck     # vue-tsc --noEmit: packages, .vue files and the fake CLI
 pnpm demo          # demo deck on http://localhost:3030
 ```
 
-Behind a proxy that resets connections, `pnpm install` can fail with `ECONNRESET` or finish with empty packages. `pnpm-workspace.yaml` sets `networkConcurrency: 4` and `fetchRetries: 6`. If it still fails, rerun with `--network-concurrency=2`, then check that `@slidev/cli` has a `dist/` folder.
+The `networkConcurrency` and `fetchRetries` settings in `pnpm-workspace.yaml` exist for a sandbox proxy only; delete them on a normal network. Behind a proxy that resets connections, `pnpm install` can fail with `ECONNRESET` or finish with empty packages. They set `networkConcurrency: 4` and `fetchRetries: 6`. If it still fails, rerun with `--network-concurrency=2`, then check that `@slidev/cli` has a `dist/` folder.
+
+The review API is loopback-only on purpose (the request guard refuses any other Host). Running the demo with `--host` is not supported yet; do not widen the guard to make it work.
 
 To try the review loop without spending a subscription, point the addon at the fake CLI (honoured only with the test switch `BETTER_SLIDE_TEST=1`): `BETTER_SLIDE_TEST=1 BETTER_SLIDE_FAKE_AGENT=$PWD/packages/agents/test/fixtures/fake-claude.mjs pnpm demo`.
 

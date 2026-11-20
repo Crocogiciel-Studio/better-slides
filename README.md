@@ -13,7 +13,14 @@ pnpm demo        # Slidev on http://localhost:3030 with the addon enabled
 
 In the preview, use the Review panel (bottom right): click **Comment**, click an element, write a note, **Add**. Stack as many as you like, then **Send stack**. Claude Code (`claude`, installed and logged in) edits `slides.md` and the preview hot-reloads.
 
-To use it in your own deck, add the addon to the deck's front matter (`addons: [better-slide]`) and install `slidev-addon-better-slide`.
+The addon is not published yet: `slidev-addon-better-slide` is private (version 0.0.0), so `npm install` cannot fetch it. It works only inside this workspace. To review your own deck:
+
+1. Put the deck in a new folder under `examples/` (the workspace includes `examples/*`), for example `examples/my-deck/` with a `slides.md` and a `package.json` modelled on `examples/demo-deck/package.json`.
+2. In that `package.json`, depend on the addon with `"slidev-addon-better-slide": "workspace:*"`, next to `@slidev/cli` 53.1.0.
+3. In `slides.md` front matter, add `addons: [better-slide]`.
+4. Run `pnpm install` at the repository root, then `pnpm --filter my-deck exec slidev --port 3030`.
+
+The review API answers only on loopback (`localhost`, `127.0.0.1`, `[::1]`). Serving the deck on the network with `--host` is not supported yet: the API refuses those requests.
 
 ## The idea
 
@@ -29,11 +36,12 @@ Later milestones add a library to find your decks and past reviews again, and th
 
 - **Built on Slidev.** A deck stays a regular Slidev project. You can open it without Better Slide.
 - **Local only.** Everything runs on your machine. There is no account and no hosted service.
-- **Your subscription, not the API.** Better Slide launches the CLI you already installed and logged in (Claude Code, Codex). It never reads, copies or stores your credentials.
+- **Your subscription, not the API.** Better Slide launches the CLI you already installed and logged in (Claude Code today, Codex planned). It never reads, copies or stores your credentials.
 
 ## Known limits
 
-- The rendered element is tied to the source by slide, text excerpt and selector. A line number is added when the excerpt is found in the slide, as a hint only ([decision 0001](aidd_docs/memory/internal/decisions/0001-element-source-link.md)).
+- The rendered element is tied to the source by slide, text excerpt and selector. A line number is added when the excerpt is found in the slide, as a best-effort hint only: it can be missing or point at the first of several matches ([decision 0001](aidd_docs/memory/internal/decisions/0001-element-source-link.md)).
+- The deck can only be reviewed on loopback, not with `--host`.
 - Only Claude Code is supported. The agent layer leaves room for another CLI.
 - The Claude Code launch flags come from the CLI's documented help and are untested against a real run ([decision 0002](aidd_docs/memory/internal/decisions/0002-agent-headless-launch.md)).
 
