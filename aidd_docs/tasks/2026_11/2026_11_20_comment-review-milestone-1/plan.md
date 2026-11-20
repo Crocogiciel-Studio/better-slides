@@ -1,6 +1,6 @@
 ---
 objective: "A Slidev author can select slide elements, stack comments, and send them at once to their local coding agent, which edits the deck so the preview updates."
-status: in-progress
+status: implemented
 ---
 
 # Plan: Better Slide milestone 1, comment-based review

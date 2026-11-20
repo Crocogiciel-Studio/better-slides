@@ -111,4 +111,23 @@ describe('review routes', () => {
     await t.call('DELETE', '/comments')
     expect(await (await t.call('GET', '/comments')).json()).toEqual({ comments: [], locked: false })
   })
+
+  it('refuses to clear the stack while a run is in progress', async () => {
+    const t = client()
+    await t.add('one')
+    await t.call('POST', '/send')
+    expect((await t.call('DELETE', '/comments')).status).toBe(423)
+  })
+
+  it('cancels the current run through the agent', async () => {
+    let cancelled = false
+    const t = controllableAgent()
+    const run = t.agent.run.bind(t.agent)
+    t.agent.run = (req, on) => ({ ...run(req, on), cancel: () => (cancelled = true) })
+    const c = client(t)
+    await c.add('one')
+    await c.call('POST', '/send')
+    await c.call('POST', '/cancel')
+    expect(cancelled).toBe(true)
+  })
 })
