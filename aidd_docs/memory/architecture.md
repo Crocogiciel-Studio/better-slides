@@ -16,7 +16,7 @@
 
 ## Constraints
 
-- Only the agent adapters know the AI CLIs.
+- Only the agent adapters know the AI CLIs. They turn a CLI's output into generic events (`text`, `activity`, `finished`, `failed`); `review` reads per-comment report markers from `text` only, never from comment fields.
 - Remove every `ANTHROPIC_*`, `OPENAI_*` and `CLAUDE_CODE_USE_*` variable from the CLI environment, or the CLI bills an API or another provider instead of the subscription.
 - Never read, copy or store CLI credentials.
 

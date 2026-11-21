@@ -13,6 +13,8 @@ pnpm demo        # Slidev on http://localhost:3030 with the addon enabled
 
 In the preview, move the mouse to the bottom-left to reveal Slidev's navigation bar and press the **Review** button (speech bubble, or press `r`). A sidebar opens on the right and the slide shrinks to make room; it is never covered. Click an element on the slide, write a note in the sidebar, **Add**. The sidebar lists your comments by slide with each note in full; stack as many as you like, then **Send stack**. Press the button or `r` again, or the close icon, to leave review mode. The arrow keys, space and page keys keep navigating the deck after every button press; click the note field to type, and press `Escape` to leave it. Claude Code (`claude`, installed and logged in) edits `slides.md` and the preview hot-reloads.
 
+During a run, each comment card shows its state: **Waiting**, **In progress**, **Done**, **Not done** or **Failed**. The footer says what the agent is doing (for example *Editing slides.md*) and which comment it is on (*Comment 2 of 3*), with **Cancel**. After the run, each comment keeps the agent's one-line reply: what it changed, or why it did not. Done comments stay until you press **Clear finished**. Not done and failed comments stay in the stack and are sent again with the next **Send stack**; remove them if you do not want that. If the agent never reported on a comment, the card says **Unconfirmed** and shows the agent's final text instead: check the slide yourself. A cancel or a failure leaves nothing in progress: reported comments keep their outcome, the others go back to waiting.
+
 The addon is not published yet: `slidev-addon-better-slide` is private (version 0.0.0), so `npm install` cannot fetch it. It works only inside this workspace. To review your own deck:
 
 1. Put the deck in a new folder under `examples/` (the workspace includes `examples/*`), for example `examples/my-deck/` with a `slides.md` and a `package.json` modelled on `examples/demo-deck/package.json`.
@@ -44,7 +46,7 @@ Later milestones add a library to find your decks and past reviews again, and th
 - The deck can only be reviewed on loopback, not with `--host`.
 - Terms of use: whether a provider allows its subscription to be used through a third-party tool is not settled, and the sources found disagree. Better Slide only launches the CLI you installed, as you, and never touches your login. Check Anthropic's and OpenAI's current terms before relying on it.
 - Only Claude Code is supported. The agent layer leaves room for another CLI.
-- The Claude Code launch flags come from the CLI's documented help and are untested against a real run ([decision 0002](aidd_docs/memory/internal/decisions/0002-agent-headless-launch.md)).
+- The Claude Code launch flags and the shape of its event stream come from the CLI's documented help and are untested against a real run ([decision 0002](aidd_docs/memory/internal/decisions/0002-agent-headless-launch.md)). The per-comment states depend on the agent printing short report markers; when it does not, comments end **Unconfirmed**.
 
 ## Roadmap
 
