@@ -25,3 +25,7 @@ Can a rendered element be tied to its exact line in `slides.md` using only an ad
 
 - Behavior with decks split over several markdown files (`src:` imports).
 - Excerpts that appear more than once in the same slide: the first match wins.
+
+## Whole-slide comments (2026-11-21)
+
+A comment can target the whole slide (`target: 'slide'`): it carries the slide number and the note only, and the prompt says the note applies to the whole slide. A click on the slide root or its `.slidev-layout` wrapper (an empty area) selects it; Slidev only changes slide on clicks whose target is `#slide-container`, and the selection handler stops the click in the capture phase anyway.

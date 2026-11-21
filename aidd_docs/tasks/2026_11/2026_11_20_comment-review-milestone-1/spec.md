@@ -17,7 +17,8 @@ A Slidev author can review a running deck by attaching comments to slide element
 - The stack is locked while an agent run is in progress.
 - The review control lives in Slidev's own navigation bar, not in a floating card.
 - The review interface never covers the slides: the slide canvas stays fully visible and is resized to make room for the review sidebar.
-- Navigating the deck with the keyboard (arrows, page keys, space) keeps working after any interaction with the review interface, except while typing a note.
+- Navigating the deck with the keyboard (arrows, page keys, space) keeps working after every review action except while typing a note; selecting an element or the slide focuses the note field; Escape, Add and Cancel return the focus to the deck.
+- A comment can target the whole slide instead of one element.
 - The pending comments are listed in a sidebar where each note is readable in full.
 - During a run, the author sees which comment the agent is working on and what the agent is doing, not only that it is running.
 - The agent answers each comment with a short reply saying what it changed or why it did not, and the author can read it after the run.
@@ -44,7 +45,8 @@ A Slidev author can review a running deck by attaching comments to slide element
 - No credential and no API-key value is read, stored or shown by Better Slide at any point.
 - The deck still opens in plain Slidev after a review.
 - With review mode on, the slide area is narrower and no part of the review interface overlaps it, at common window sizes, in light and dark mode.
-- After toggling review mode, selecting an element, adding, removing, sending and cancelling, the arrow keys still change the slide.
+- After toggling review mode, adding, removing, sending and cancelling, the arrow keys still change the slide. Selecting puts the cursor in the note field, where the arrow keys move the cursor and not the slide; Escape, Add and Cancel give the keys back to the deck.
+- The author comments on the whole slide by clicking an empty area of the slide or with a Whole slide control; the click does not change the slide, the slide is outlined, and the card says it targets the whole slide.
 - The sidebar shows the comments grouped by slide, each with its whole note, and stays usable with many comments.
 - During a run, each comment shows waiting, in progress, done, not done or failed, and the live activity of the agent is visible.
 - After a run, each processed comment shows the agent's reply and stays visible until the author clears the finished ones. Comments not done or failed stay in the stack for the next send.
