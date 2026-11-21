@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import { type Activity, type CommentState, isFinished, isSendable, type ReviewSnapshot, type RunStatus, type StackItem } from '@better-slide/shared'
+import { type Activity, type AgentReadiness, type CommentState, isFinished, isSendable, type ReviewSnapshot, type RunStatus, type StackItem } from '@better-slide/shared'
 import { createClient } from './api'
 import type { ElementPick } from './selection'
 
@@ -49,6 +49,17 @@ export function summarize(comments: StackItem[]): string {
   return [...counts].map(([state, n]) => `${n} ${STATE_LABELS[state].toLowerCase()}`).join(', ')
 }
 
+/** The readiness line: text, tone, and whether to offer a new check. Hints mark commands with backticks. */
+export function describeReadiness(r?: AgentReadiness): { text: string; tone: 'ok' | 'warn' | 'error' | 'muted'; recheck: boolean } {
+  if (!r) return { text: 'Checking the agent…', tone: 'muted', recheck: false }
+  if (!r.ready) return { text: r.hint ?? `${r.agent} is not ready`, tone: 'error', recheck: true }
+  if (r.reason) return { text: r.hint ?? `${r.agent}: login not confirmed`, tone: 'warn', recheck: true }
+  return { text: `${r.agent}: ready`, tone: 'ok', recheck: false }
+}
+
+/** Splits a hint on backticks: odd parts are commands. */
+export const hintParts = (text: string) => text.split('`').map((part, i) => ({ part, code: i % 2 === 1 }))
+
 /** Gives the keyboard back to the deck: Slidev reads keys on the window, not on a focused button. */
 export function releaseFocus(doc: Document | undefined = typeof document === 'undefined' ? undefined : document) {
   const active = doc?.activeElement
@@ -63,6 +74,7 @@ export function createReviewState(api: Client, release: () => void = releaseFocu
   const status = ref<RunStatus>({ state: 'idle' })
   const error = ref('')
   const pick = ref<ElementPick>()
+  const readiness = ref<AgentReadiness>()
 
   /** Comments not finished: the toggle badge. */
   const count = computed(() => comments.value.filter((c) => !isFinished(c)).length)
@@ -70,7 +82,7 @@ export function createReviewState(api: Client, release: () => void = releaseFocu
   const finished = computed(() => comments.value.filter(isFinished).length)
   const running = computed(() => status.value.state === 'running' || locked.value)
   const outcome = computed(() => summarize(comments.value))
-  const canSend = computed(() => sendable.value > 0 && !running.value)
+  const canSend = computed(() => sendable.value > 0 && !running.value && readiness.value?.ready !== false)
   const groups = computed(() => groupBySlide(comments.value))
 
   async function guarded(action: () => Promise<unknown>) {
@@ -97,6 +109,7 @@ export function createReviewState(api: Client, release: () => void = releaseFocu
       status.value = s.status
       comments.value = s.comments
       locked.value = s.locked
+      if (s.agent) readiness.value = s.agent
     })
   }
 
@@ -125,13 +138,14 @@ export function createReviewState(api: Client, release: () => void = releaseFocu
     }).finally(release)
 
   const remove = (id: string) => guarded(async () => (await api.remove(id), refresh())).finally(release)
+  const recheck = () => guarded(async () => (readiness.value = await api.agent(true))).finally(release)
   const clearFinished = () => guarded(async () => (await api.clearFinished(), refresh())).finally(release)
   const send = () => guarded(async () => (await api.send(), refresh())).finally(release)
   const cancel = () => guarded(() => api.cancel()).finally(release)
 
   return {
-    open, comments, locked, status, error, pick, count, sendable, finished, outcome, running, canSend, groups,
-    start, refresh, toggle, select, dismiss, add, remove, clearFinished, send, cancel,
+    open, comments, locked, status, error, pick, readiness, count, sendable, finished, outcome, running, canSend, groups,
+    start, refresh, toggle, select, dismiss, add, remove, clearFinished, recheck, send, cancel,
   }
 }
 

@@ -1,4 +1,4 @@
-import type { Comment, ReviewSnapshot, StackItem } from '@better-slide/shared'
+import type { AgentReadiness, Comment, ReviewSnapshot, StackItem } from '@better-slide/shared'
 
 export const BASE = '/__better-slide'
 
@@ -21,6 +21,8 @@ export function createClient(fetchFn: typeof fetch = (...a) => fetch(...a), base
     add: (comment: Omit<Comment, 'line'>) => call<StackItem>('POST', '/comments', comment),
     remove: (id: string) => call<{ ok: true }>('DELETE', `/comments/${id}`),
     clearFinished: () => call<{ removed: number }>('POST', '/comments/clear-finished'),
+    /** Whether the agent can run; `refresh` checks again instead of using the server's short cache. */
+    agent: (refresh = false) => call<AgentReadiness>('GET', refresh ? '/agent?refresh=1' : '/agent'),
     send: () => call<{ ok: true }>('POST', '/send'),
     cancel: () => call<{ ok: true }>('POST', '/cancel'),
     /** Follows the run status and the comment states. Returns an unsubscribe function. */

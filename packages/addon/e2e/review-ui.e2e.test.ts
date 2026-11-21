@@ -14,6 +14,8 @@ const demo = join(root, 'examples/demo-deck')
 const PORT = 3131
 const PLAIN_PORT = 3132
 const shots = process.env.BETTER_SLIDE_SCREENSHOTS ?? join(tmpdir(), 'better-slide-screenshots')
+/** The stand-in CLI answers `auth status` with this file's content when it exists (logged in otherwise). */
+const authFile = join(tmpdir(), `better-slide-e2e-auth-${process.pid}.json`)
 /** A browser Playwright installed, else a system one. BETTER_SLIDE_CHROMIUM wins when set. */
 function findChromium(): string | undefined {
   let installed: string | undefined
@@ -69,6 +71,7 @@ describe.skipIf(!chromium)('review UI in Chromium', { timeout: 60_000 }, () => {
       BETTER_SLIDE_TEST: '1',
       BETTER_SLIDE_FAKE_AGENT: join(root, 'packages/agents/test/fixtures/fake-claude.mjs'),
       FAKE_CLAUDE_STEP_MS: '600', // slow enough to see a comment in progress
+      FAKE_CLAUDE_AUTH_FILE: authFile,
     })
     serve(PLAIN_PORT, ['plain.e2e.md'])
     await Promise.all([waitFor(`http://localhost:${PORT}/2`), waitFor(`http://localhost:${PLAIN_PORT}/1`)])
@@ -80,6 +83,7 @@ describe.skipIf(!chromium)('review UI in Chromium', { timeout: 60_000 }, () => {
     await browser?.close()
     for (const s of servers) if (s.pid) try { process.kill(-s.pid, 'SIGTERM') } catch {}
     rmSync(join(demo, 'plain.e2e.md'), { force: true })
+    rmSync(authFile, { force: true })
   })
 
   async function open(opts: { width?: number; height?: number; theme?: 'light' | 'dark'; slide?: number; port?: number } = {}) {
@@ -364,6 +368,39 @@ describe.skipIf(!chromium)('review UI in Chromium', { timeout: 60_000 }, () => {
     expect(await runState(page)).toBe('failed')
     expect(await page.locator('[data-testid=send]').textContent()).toContain('(2)')
     await assertKeyboardWorks(page, 'a failed run')
+    await context.close()
+    await reset()
+  })
+
+  it('disables Send and shows the login hint while the agent is logged out, until Check again', async () => {
+    await reset()
+    writeFileSync(authFile, JSON.stringify({ loggedIn: false, authMethod: 'none' }))
+    await fetch(`${API}/agent?refresh=1`)
+    await seedNotes([[2, 'Shorter title']])
+    const { page, context } = await openReview()
+    await expect.poll(() => page.locator('[data-testid=readiness]').textContent()).toContain('Not logged in: run claude then /login')
+    expect(await page.locator('[data-testid=readiness]').getAttribute('data-tone')).toBe('error')
+    expect(await page.locator('[data-testid=send]').isDisabled()).toBe(true)
+    await assertNoOverlap(page)
+    await page.screenshot({ path: join(shots, '11-not-logged-in-1280x720-light.png') })
+
+    rmSync(authFile)
+    await page.locator('[data-testid=recheck]').click()
+    await expect.poll(() => page.locator('[data-testid=readiness]').textContent()).toContain(': ready')
+    expect(await page.locator('[data-testid=send]').isDisabled()).toBe(false)
+    await assertKeyboardWorks(page, 'Check again')
+    await context.close()
+    await reset()
+  })
+
+  it('puts the comments back to waiting and says to log in when a run fails on login', async () => {
+    await reset()
+    await seedNotes([[2, 'AUTH_FAIL Shorter title'], [4, 'Rename to Summary']])
+    const { page, context } = await openReview()
+    await page.locator('[data-testid=send]').click()
+    await expect.poll(() => page.locator('[data-testid=status]').textContent(), { timeout: 20_000 }).toContain('login missing or expired')
+    expect(await states(page)).toEqual(['waiting', 'waiting'])
+    await page.screenshot({ path: join(shots, '12-auth-failure-1280x720-light.png') })
     await context.close()
     await reset()
   })

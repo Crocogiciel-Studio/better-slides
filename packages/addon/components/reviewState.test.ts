@@ -2,7 +2,7 @@ import type { Agent } from '@better-slide/agents'
 import { createApp } from '@better-slide/server'
 import { describe, expect, it } from 'vitest'
 import { BASE, createClient } from './api.ts'
-import { createReviewState, describeActivity, groupBySlide, isPlayMode, summarize } from './reviewState.ts'
+import { createReviewState, describeActivity, describeReadiness, groupBySlide, hintParts, isPlayMode, summarize } from './reviewState.ts'
 
 const agent: Agent = { name: 'fake', run: () => ({ cancel() {}, done: new Promise(() => {}) }) }
 
@@ -113,5 +113,28 @@ describe('summarize', () => {
     const item = (state: 'done' | 'not-done' | 'waiting' | 'unreported') => ({ id: '1', slide: 1, text: 't', selector: 's', note: 'n', state })
     expect(summarize([item('done'), item('not-done'), item('done'), item('waiting'), item('unreported')])).toBe('2 done, 1 not done, 1 unconfirmed')
     expect(summarize([item('waiting')])).toBe('')
+  })
+})
+
+describe('readiness', () => {
+  it('describes each readiness and offers a new check only when it helps', () => {
+    expect(describeReadiness()).toEqual({ text: 'Checking the agent…', tone: 'muted', recheck: false })
+    expect(describeReadiness({ agent: 'Agent', ready: true })).toEqual({ text: 'Agent: ready', tone: 'ok', recheck: false })
+    expect(describeReadiness({ agent: 'Agent', ready: false, reason: 'not-logged-in', hint: 'Not logged in: run `x`' })).toEqual({ text: 'Not logged in: run `x`', tone: 'error', recheck: true })
+    expect(describeReadiness({ agent: 'Agent', ready: true, reason: 'unknown', hint: 'Not sure' }).tone).toBe('warn')
+    expect(hintParts('run `a` then `/b`')).toEqual([{ part: 'run ', code: false }, { part: 'a', code: true }, { part: ' then ', code: false }, { part: '/b', code: true }, { part: '', code: false }])
+  })
+
+  it('disables Send when the agent is not ready, and checks again on demand', async () => {
+    const { review, released } = state()
+    review.select(pick)
+    await review.add('x')
+    review.readiness.value = { agent: 'Agent', ready: false, reason: 'not-logged-in' }
+    expect(review.canSend.value).toBe(false)
+    const before = released()
+    await review.recheck()
+    expect(review.readiness.value).toEqual({ agent: 'fake', ready: true })
+    expect(review.canSend.value).toBe(true)
+    expect(released()).toBe(before + 1)
   })
 })

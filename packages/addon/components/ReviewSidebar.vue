@@ -2,9 +2,13 @@
 import type { CommentState } from '@better-slide/shared'
 import ReviewComposer from './ReviewComposer.vue'
 import RunStatus from './RunStatus.vue'
-import { STATE_LABELS, useReview } from './reviewState'
+import { computed } from 'vue'
+import { describeReadiness, hintParts, STATE_LABELS, useReview } from './reviewState'
 
 const review = useReview()
+
+const readiness = computed(() => describeReadiness(review.readiness.value))
+const TONES = { ok: 'text-green-700 dark:text-green-400', warn: 'text-amber-700 dark:text-amber-300', error: 'text-red-600 dark:text-red-400', muted: 'opacity-60' }
 
 const STATE_STYLE: Record<CommentState, { icon: string; color: string }> = {
   waiting: { icon: 'i-carbon:time', color: 'opacity-60' },
@@ -57,7 +61,10 @@ const STATE_STYLE: Record<CommentState, { icon: string; color: string }> = {
     </div>
 
     <footer class="p-3 border-t border-main flex flex-col gap-2">
-      <div v-if="review.error.value" class="text-sm text-red-600 dark:text-red-400 break-words" data-testid="error">{{ review.error.value }}</div>
+      <!-- A send refused for readiness repeats the readiness line: show it once. -->
+      <div v-if="review.error.value && review.error.value !== readiness.text" class="text-sm text-red-600 dark:text-red-400 break-words" data-testid="error">
+        <template v-for="(p, i) in hintParts(review.error.value)" :key="i"><code v-if="p.code" class="px-0.5 rounded bg-active">{{ p.part }}</code><template v-else>{{ p.part }}</template></template>
+      </div>
       <div class="flex items-start justify-between gap-2">
         <RunStatus :status="review.status.value" :outcome="review.outcome.value" />
         <button
@@ -68,6 +75,12 @@ const STATE_STYLE: Record<CommentState, { icon: string; color: string }> = {
         >
           Cancel
         </button>
+      </div>
+      <div class="flex items-start justify-between gap-2 text-xs" :data-tone="readiness.tone" data-testid="readiness">
+        <span class="min-w-0 break-words" :class="TONES[readiness.tone]">
+          <template v-for="(p, i) in hintParts(readiness.text)" :key="i"><code v-if="p.code" class="px-0.5 rounded bg-active">{{ p.part }}</code><template v-else>{{ p.part }}</template></template>
+        </span>
+        <button v-if="readiness.recheck" class="shrink-0 underline opacity-80 hover:opacity-100" data-testid="recheck" @click="review.recheck">Check again</button>
       </div>
       <div class="flex gap-2">
         <button
