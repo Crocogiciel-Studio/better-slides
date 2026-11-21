@@ -65,7 +65,11 @@ describe.skipIf(!chromium)('review UI in Chromium', { timeout: 60_000 }, () => {
   beforeAll(async () => {
     mkdirSync(shots, { recursive: true })
     writeFileSync(join(demo, 'plain.e2e.md'), '---\ntheme: default\n---\n\n# One\n\n---\n\n# Two\n')
-    serve(PORT, ['slides.md'], { BETTER_SLIDE_TEST: '1', BETTER_SLIDE_FAKE_AGENT: join(root, 'packages/agents/test/fixtures/fake-claude.mjs') })
+    serve(PORT, ['slides.md'], {
+      BETTER_SLIDE_TEST: '1',
+      BETTER_SLIDE_FAKE_AGENT: join(root, 'packages/agents/test/fixtures/fake-claude.mjs'),
+      FAKE_CLAUDE_STEP_MS: '600', // slow enough to see a comment in progress
+    })
     serve(PLAIN_PORT, ['plain.e2e.md'])
     await Promise.all([waitFor(`http://localhost:${PORT}/2`), waitFor(`http://localhost:${PLAIN_PORT}/1`)])
     const { chromium: pw } = await import('playwright-core')
@@ -279,7 +283,7 @@ describe.skipIf(!chromium)('review UI in Chromium', { timeout: 60_000 }, () => {
     await assertKeyboardWorks(page, 'send')
 
     await page.locator('[data-testid=cancel]').click()
-    await expect.poll(() => page.locator('[data-testid=status]').textContent()).not.toContain('running')
+    await expect.poll(() => page.locator('[data-testid=status]').getAttribute('data-state')).toBe('failed')
     await assertKeyboardWorks(page, 'cancel')
 
     await page.locator('[data-testid=close]').click()
@@ -287,6 +291,82 @@ describe.skipIf(!chromium)('review UI in Chromium', { timeout: 60_000 }, () => {
     await context.close()
     await reset()
   }, 90_000)
+
+  const states = (page: Page) => page.locator('[data-testid=item]').evaluateAll((els) => els.map((e) => e.getAttribute('data-state')))
+  const runState = (page: Page) => page.locator('[data-testid=status]').getAttribute('data-state')
+  const seedNotes = async (notes: [number, string][]) => {
+    for (const [slide, note] of notes)
+      await fetch(`${API}/comments`, { method: 'POST', headers: json, body: JSON.stringify({ slide, text: `Element on slide ${slide}`, selector: 'h1', note }) })
+  }
+  async function openReview() {
+    const o = await open()
+    await o.page.keyboard.press('r')
+    await o.page.waitForSelector('[data-testid=item]')
+    return o
+  }
+
+  it('shows each comment in progress then done or not done with a reply, and Clear finished keeps the rest', async () => {
+    await reset()
+    await seedNotes([[2, 'Shorter title'], [2, 'Add a figure SKIP'], [4, 'Rename to Summary']])
+    const { page, context, errors } = await openReview()
+    expect(await states(page)).toEqual(['waiting', 'waiting', 'waiting'])
+
+    await page.locator('[data-testid=send]').click()
+    await page.waitForSelector('[data-testid=item][data-state=in-progress]')
+    await expect.poll(() => page.locator('[data-testid=status]').textContent()).toMatch(/(Reading|Editing) slides\.md/)
+    await expect.poll(() => page.locator('[data-testid=progress]').textContent()).toMatch(/Comment [1-3] of 3/)
+    expect(await page.locator('[data-testid=item][data-state=in-progress]').count()).toBe(1)
+    await assertNoOverlap(page)
+    await page.screenshot({ path: join(shots, '8-run-in-progress-1280x720-light.png') })
+    await assertKeyboardWorks(page, 'send, during the run')
+
+    await expect.poll(() => runState(page), { timeout: 20_000 }).toBe('finished')
+    expect(await states(page)).toEqual(['done', 'not-done', 'done'])
+    const replies = await page.locator('[data-testid=reply]').allTextContents()
+    expect(replies).toHaveLength(3)
+    expect(replies[0]).toContain('Shorter title')
+    expect(replies[1]).toContain('Not done')
+    expect(await page.locator('[data-testid=status]').textContent()).toContain('2 done, 1 not done')
+    await assertNoOverlap(page)
+    await page.screenshot({ path: join(shots, '9-run-finished-1280x720-light.png') })
+    await assertKeyboardWorks(page, 'the end of a run')
+
+    await page.locator('[data-testid=clear-finished]').click()
+    await expect.poll(() => states(page)).toEqual(['not-done'])
+    expect(await page.locator('[data-testid=reply]').textContent()).toContain('Not done')
+    expect(await page.locator('[data-testid=send]').textContent()).toContain('(1)')
+    await assertKeyboardWorks(page, 'Clear finished')
+    expect(errors).toEqual([])
+    await context.close()
+    await reset()
+  })
+
+  it('closes every comment with the agent final text when it prints no marker', async () => {
+    await reset()
+    await seedNotes([[2, 'NOREPORT Shorter title'], [4, 'Rename to Summary']])
+    const { page, context } = await openReview()
+    await page.locator('[data-testid=send]').click()
+    // The server still shows the previous run's status until this run starts: wait on the comments.
+    await expect.poll(() => states(page), { timeout: 20_000 }).toEqual(['unreported', 'unreported'])
+    expect(await runState(page)).toBe('finished')
+    expect(await page.locator('[data-testid=reply]').first().textContent()).toContain('I applied the review comments')
+    await page.screenshot({ path: join(shots, '10-run-no-marker-1280x720-light.png') })
+    await context.close()
+    await reset()
+  })
+
+  it('leaves nothing in progress when the agent fails mid-run', async () => {
+    await reset()
+    await seedNotes([[2, 'Shorter title'], [2, 'CRASH here'], [4, 'Rename to Summary']])
+    const { page, context } = await openReview()
+    await page.locator('[data-testid=send]').click()
+    await expect.poll(() => states(page), { timeout: 20_000 }).toEqual(['done', 'failed', 'waiting'])
+    expect(await runState(page)).toBe('failed')
+    expect(await page.locator('[data-testid=send]').textContent()).toContain('(2)')
+    await assertKeyboardWorks(page, 'a failed run')
+    await context.close()
+    await reset()
+  })
 
   it('leaves the presenter view and the overview working', async () => {
     const presenter = await open({ slide: 2 }).then(async (o) => (await o.page.goto(`http://localhost:${PORT}/presenter/2`, { waitUntil: 'networkidle' }), o))

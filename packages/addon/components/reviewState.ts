@@ -1,5 +1,5 @@
 import { computed, ref } from 'vue'
-import type { RunStatus, StackItem } from '@better-slide/shared'
+import { type Activity, type CommentState, isFinished, isSendable, type ReviewSnapshot, type RunStatus, type StackItem } from '@better-slide/shared'
 import { createClient } from './api'
 import type { ElementPick } from './selection'
 
@@ -23,6 +23,32 @@ export function groupBySlide(comments: StackItem[]): SlideGroup[] {
   return [...groups.entries()].sort((a, b) => a[0] - b[0]).map(([slide, items]) => ({ slide, items }))
 }
 
+export const STATE_LABELS: Record<CommentState, string> = {
+  waiting: 'Waiting',
+  'in-progress': 'In progress',
+  done: 'Done',
+  'not-done': 'Not done',
+  failed: 'Failed',
+  unreported: 'Unconfirmed',
+}
+
+const VERBS: Record<Activity['action'], string> = { read: 'Reading', edit: 'Editing', search: 'Searching', other: 'Working' }
+
+/** One short line for the footer, such as "Editing slides.md". */
+export function describeActivity(activity?: Activity): string {
+  if (!activity) return 'Starting'
+  const verb = VERBS[activity.action] ?? VERBS.other
+  if (!activity.target || activity.action === 'other') return verb
+  return activity.action === 'search' ? `${verb} "${activity.target}"` : `${verb} ${activity.target}`
+}
+
+/** "2 done, 1 not done": how the comments of the stack stand, waiting ones left out. */
+export function summarize(comments: StackItem[]): string {
+  const counts = new Map<CommentState, number>()
+  for (const c of comments) if (c.state !== 'waiting') counts.set(c.state, (counts.get(c.state) ?? 0) + 1)
+  return [...counts].map(([state, n]) => `${n} ${STATE_LABELS[state].toLowerCase()}`).join(', ')
+}
+
 /** Gives the keyboard back to the deck: Slidev reads keys on the window, not on a focused button. */
 export function releaseFocus(doc: Document | undefined = typeof document === 'undefined' ? undefined : document) {
   const active = doc?.activeElement
@@ -38,9 +64,13 @@ export function createReviewState(api: Client, release: () => void = releaseFocu
   const error = ref('')
   const pick = ref<ElementPick>()
 
-  const count = computed(() => comments.value.length)
+  /** Comments not finished: the toggle badge. */
+  const count = computed(() => comments.value.filter((c) => !isFinished(c)).length)
+  const sendable = computed(() => comments.value.filter(isSendable).length)
+  const finished = computed(() => comments.value.filter(isFinished).length)
   const running = computed(() => status.value.state === 'running' || locked.value)
-  const canSend = computed(() => count.value > 0 && !running.value)
+  const outcome = computed(() => summarize(comments.value))
+  const canSend = computed(() => sendable.value > 0 && !running.value)
   const groups = computed(() => groupBySlide(comments.value))
 
   async function guarded(action: () => Promise<unknown>) {
@@ -60,13 +90,13 @@ export function createReviewState(api: Client, release: () => void = releaseFocu
     })
   }
 
-  /** Loads the stack and follows the run status. Returns a stop function. */
+  /** Follows the server's snapshots (stack, comment states, run status). Returns a stop function. */
   function start(): () => void {
     refresh()
-    return api.follow((s) => {
-      const changed = s.state !== status.value.state
-      status.value = s
-      if (changed) refresh()
+    return api.follow((s: ReviewSnapshot) => {
+      status.value = s.status
+      comments.value = s.comments
+      locked.value = s.locked
     })
   }
 
@@ -95,10 +125,14 @@ export function createReviewState(api: Client, release: () => void = releaseFocu
     }).finally(release)
 
   const remove = (id: string) => guarded(async () => (await api.remove(id), refresh())).finally(release)
+  const clearFinished = () => guarded(async () => (await api.clearFinished(), refresh())).finally(release)
   const send = () => guarded(async () => (await api.send(), refresh())).finally(release)
   const cancel = () => guarded(() => api.cancel()).finally(release)
 
-  return { open, comments, locked, status, error, pick, count, running, canSend, groups, start, refresh, toggle, select, dismiss, add, remove, send, cancel }
+  return {
+    open, comments, locked, status, error, pick, count, sendable, finished, outcome, running, canSend, groups,
+    start, refresh, toggle, select, dismiss, add, remove, clearFinished, send, cancel,
+  }
 }
 
 let shared: ReturnType<typeof createReviewState> | undefined

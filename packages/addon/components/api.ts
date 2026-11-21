@@ -1,4 +1,4 @@
-import type { Comment, RunStatus, StackItem } from '@better-slide/shared'
+import type { Comment, ReviewSnapshot, StackItem } from '@better-slide/shared'
 
 export const BASE = '/__better-slide'
 
@@ -20,12 +20,13 @@ export function createClient(fetchFn: typeof fetch = (...a) => fetch(...a), base
     list: () => call<{ comments: StackItem[]; locked: boolean }>('GET', '/comments'),
     add: (comment: Omit<Comment, 'line'>) => call<StackItem>('POST', '/comments', comment),
     remove: (id: string) => call<{ ok: true }>('DELETE', `/comments/${id}`),
+    clearFinished: () => call<{ removed: number }>('POST', '/comments/clear-finished'),
     send: () => call<{ ok: true }>('POST', '/send'),
     cancel: () => call<{ ok: true }>('POST', '/cancel'),
-    /** Follows run status. Returns an unsubscribe function. */
-    follow(onStatus: (s: RunStatus) => void): () => void {
+    /** Follows the run status and the comment states. Returns an unsubscribe function. */
+    follow(onSnapshot: (s: ReviewSnapshot) => void): () => void {
       const source = new EventSource(`${base}/events`)
-      source.onmessage = (e) => onStatus(JSON.parse(e.data))
+      source.onmessage = (e) => onSnapshot(JSON.parse(e.data))
       return () => source.close()
     },
   }

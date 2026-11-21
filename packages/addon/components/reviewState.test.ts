@@ -2,7 +2,7 @@ import type { Agent } from '@better-slide/agents'
 import { createApp } from '@better-slide/server'
 import { describe, expect, it } from 'vitest'
 import { BASE, createClient } from './api.ts'
-import { createReviewState, groupBySlide, isPlayMode } from './reviewState.ts'
+import { createReviewState, describeActivity, groupBySlide, isPlayMode, summarize } from './reviewState.ts'
 
 const agent: Agent = { name: 'fake', run: () => ({ cancel() {}, done: new Promise(() => {}) }) }
 
@@ -27,7 +27,7 @@ describe('isPlayMode', () => {
 
 describe('groupBySlide', () => {
   it('groups by ascending slide and keeps the order inside a slide', () => {
-    const item = (id: string, slide: number) => ({ id, slide, text: 't', selector: 's', note: id })
+    const item = (id: string, slide: number) => ({ id, slide, text: 't', selector: 's', note: id, state: 'waiting' as const })
     const groups = groupBySlide([item('a', 4), item('b', 2), item('c', 4)])
     expect(groups.map((g) => [g.slide, g.items.map((i) => i.id)])).toEqual([[2, ['b']], [4, ['a', 'c']]])
   })
@@ -79,5 +79,39 @@ describe('review state', () => {
     const { review } = state()
     await review.send()
     expect(review.error.value).toMatch(/empty/)
+  })
+
+  it('counts pending, sendable and finished comments, and clears the finished ones', async () => {
+    const { review, released } = state()
+    for (const n of ['a', 'b', 'c']) {
+      review.select(pick)
+      await review.add(n)
+    }
+    const [a, b, c] = review.comments.value
+    review.comments.value = [{ ...a, state: 'done' }, { ...b, state: 'not-done' }, { ...c, state: 'unreported' }]
+    expect([review.count.value, review.sendable.value, review.finished.value]).toEqual([1, 1, 2])
+    const before = released()
+    await review.clearFinished() // the server still has them all waiting: nothing finished there
+    expect(review.comments.value.map((i) => i.state)).toEqual(['waiting', 'waiting', 'waiting'])
+    expect(released()).toBe(before + 1)
+  })
+})
+
+describe('describeActivity', () => {
+  it('says what the agent does in a few words, with no detail for other tools', () => {
+    expect(describeActivity()).toBe('Starting')
+    expect(describeActivity({ action: 'read', target: 'slides.md' })).toBe('Reading slides.md')
+    expect(describeActivity({ action: 'edit', target: 'pages/a.md' })).toBe('Editing pages/a.md')
+    expect(describeActivity({ action: 'search', target: 'Install' })).toBe('Searching "Install"')
+    expect(describeActivity({ action: 'edit' })).toBe('Editing')
+    expect(describeActivity({ action: 'other', target: 'x' })).toBe('Working')
+  })
+})
+
+describe('summarize', () => {
+  it('counts the outcomes, leaving waiting comments out', () => {
+    const item = (state: 'done' | 'not-done' | 'waiting' | 'unreported') => ({ id: '1', slide: 1, text: 't', selector: 's', note: 'n', state })
+    expect(summarize([item('done'), item('not-done'), item('done'), item('waiting'), item('unreported')])).toBe('2 done, 1 not done, 1 unconfirmed')
+    expect(summarize([item('waiting')])).toBe('')
   })
 })
