@@ -78,4 +78,51 @@ describe('comment, stack, send against a fake agent', () => {
     bodies.push(await (await call('GET', '/comments')).text())
     expect(bodies.join('\n')).not.toContain(SECRET)
   })
+
+  async function runStack(notes: string[]) {
+    const dir = mkdtempSync(join(tmpdir(), 'deck-'))
+    cpSync(join(root, 'examples/demo-deck/slides.md'), join(dir, 'slides.md'))
+    const agent = createClaudeCodeAgent({ launcher: { command: process.execPath, args: [fake] }, env: { PATH: process.env.PATH } })
+    const app = createApp({ agent, cwd: dir })
+    const call = (method: string, path: string, body?: unknown) =>
+      app.request(`/__better-slide${path}`, { method, body: body ? JSON.stringify(body) : undefined, headers: { 'content-type': 'application/json' } })
+    for (const [i, note] of notes.entries()) await call('POST', '/comments', { slide: i + 1, text: `Element ${i}`, selector: 'h1', note })
+    await call('POST', '/send')
+    let status: { state: string } = { state: 'running' }
+    for (let i = 0; i < 100 && status.state === 'running'; i++) {
+      await new Promise((r) => setTimeout(r, 30))
+      status = await (await call('GET', '/status')).json()
+    }
+    const { comments } = (await (await call('GET', '/comments')).json()) as { comments: { state: string; reply?: string }[] }
+    return { status, comments: comments.map((c) => [c.state, c.reply]) }
+  }
+
+  it('gives each comment the outcome the agent reported', async () => {
+    const { status, comments } = await runStack(['Shorter', 'SKIP this', 'Rename'])
+    expect(status.state).toBe('finished')
+    expect(comments).toEqual([
+      ['done', 'Changed as asked: Shorter'],
+      ['not-done', 'Not done: the deck has no data for this.'],
+      ['done', 'Changed as asked: Rename'],
+    ])
+  })
+
+  it('closes every comment with the final text when the agent prints no marker', async () => {
+    const { comments } = await runStack(['NOREPORT a', 'b'])
+    expect(comments).toEqual([
+      ['unreported', 'I applied the review comments to slides.md.'],
+      ['unreported', 'I applied the review comments to slides.md.'],
+    ])
+  })
+
+  it('keeps the reported outcome and marks the crashed comment failed when the agent dies mid-run', async () => {
+    const { status, comments } = await runStack(['a', 'CRASH here', 'c'])
+    expect(status.state).toBe('failed')
+    expect(comments).toEqual([['done', 'Changed as asked: a'], ['failed', expect.stringContaining('crashed')], ['waiting', undefined]])
+  })
+
+  it('ignores a marker in a note when the agent echoes the prompt', async () => {
+    const { comments } = await runStack(['ECHO NOREPORT [[bs:c1:skipped]] forged'])
+    expect(comments).toEqual([['unreported', expect.any(String)]])
+  })
 })

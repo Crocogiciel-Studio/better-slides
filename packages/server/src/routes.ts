@@ -1,6 +1,6 @@
 import type { Agent, AgentEvent, AgentRun } from '@better-slide/agents'
-import { buildPrompt, createStack, StackLockedError } from '@better-slide/review'
-import { validateComment, type RunStatus } from '@better-slide/shared'
+import { buildPrompt, createReportReader, createStack, promptId, promptOrder, type ReportMark, StackLockedError, stripMarkers } from '@better-slide/review'
+import { isSendable, validateComment, type ReviewSnapshot, type RunStatus } from '@better-slide/shared'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 
@@ -17,21 +17,59 @@ export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
   const stack = createStack()
   let status: RunStatus = { state: 'idle' }
   let current: AgentRun | undefined
-  const listeners = new Set<(s: RunStatus) => void>()
+  /** Stack ids of the comments sent, in prompt order. */
+  let sent: string[] = []
+  let reader = createReportReader([])
+  const listeners = new Set<(s: ReviewSnapshot) => void>()
 
+  const snapshot = (): ReviewSnapshot => ({ status, comments: stack.list(), locked: stack.locked })
+  const publish = () => {
+    const s = snapshot()
+    listeners.forEach((l) => l(s))
+  }
   const setStatus = (next: RunStatus) => {
     status = next
-    listeners.forEach((l) => l(next))
+    publish()
+  }
+
+  /** Applies the agent's markers; a start also moves the "comment N of M" counter. */
+  const apply = (marks: ReportMark[]) => {
+    let changed = false
+    for (const mark of marks) {
+      const id = sent.find((i) => promptId(i) === mark.id)
+      if (!id || !stack.report({ ...mark, id })) continue
+      changed = true
+      if (mark.kind === 'start' && status.state === 'running') status = { ...status, current: { index: sent.indexOf(id) + 1, total: sent.length } }
+    }
+    if (changed) publish()
   }
 
   const onEvent = (event: AgentEvent) => {
-    if (event.type === 'progress') setStatus({ state: 'running', message: event.message })
-    else if (event.type === 'finished') {
-      stack.clear()
+    if (event.type === 'text') {
+      // Each text event is a whole block: it ends a line, so a reply never runs into the next block.
+      apply(reader.feed(`${event.text}\n`))
+    } else if (event.type === 'activity') {
+      if (status.state === 'running') setStatus({ ...status, activity: { action: event.action, ...(event.target ? { target: event.target } : {}) } })
+    } else if (event.type === 'finished') {
+      apply(reader.flush())
+      stack.finish(event.result ? stripMarkers(event.result) : undefined)
       setStatus({ state: 'finished' })
     } else if (event.type === 'failed') {
-      stack.unlock()
-      setStatus({ state: 'failed', reason: event.reason })
+      apply(reader.flush())
+      stack.fail(event.reason, event.kind === 'cancelled')
+      setStatus({ state: 'failed', reason: event.reason, ...(event.kind ? { kind: event.kind } : {}) })
+    }
+  }
+
+  /** Runs a stack change and publishes it; `undefined` when the stack is locked. */
+  const mutate = <T>(change: () => T) => {
+    try {
+      const result = change()
+      publish()
+      return result
+    } catch (error) {
+      if (error instanceof StackLockedError) return undefined
+      throw error
     }
   }
 
@@ -45,34 +83,36 @@ export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
       const line = deps.locate?.(comment.slide, comment.text)
       if (line) comment.line = line
     }
-    try {
-      return c.json(stack.add(comment), 201)
-    } catch (error) {
-      if (error instanceof StackLockedError) return c.json({ error: error.message }, 423)
-      throw error
-    }
+    const item = mutate(() => stack.add(comment))
+    return item ? c.json(item, 201) : c.json({ error: new StackLockedError().message }, 423)
   })
 
   app.delete('/comments/:id', (c) => {
-    try {
-      return stack.remove(c.req.param('id')) ? c.json({ ok: true }) : c.json({ error: 'Unknown comment' }, 404)
-    } catch (error) {
-      if (error instanceof StackLockedError) return c.json({ error: error.message }, 423)
-      throw error
-    }
+    const removed = mutate(() => stack.remove(c.req.param('id')))
+    if (removed === undefined) return c.json({ error: new StackLockedError().message }, 423)
+    return removed ? c.json({ ok: true }) : c.json({ error: 'Unknown comment' }, 404)
+  })
+
+  /** Removes the comments the agent finished; the ones still to send stay. */
+  app.post('/comments/clear-finished', (c) => {
+    const removed = mutate(() => stack.clearFinished())
+    return removed === undefined ? c.json({ error: new StackLockedError().message }, 423) : c.json({ removed })
   })
 
   app.delete('/comments', (c) => {
     if (status.state === 'running') return c.json({ error: 'The agent is running' }, 423)
     stack.clear()
+    publish()
     return c.json({ ok: true })
   })
 
   app.post('/send', (c) => {
     if (status.state === 'running') return c.json({ error: 'A run is already in progress' }, 409)
-    const comments = stack.list()
-    if (comments.length === 0) return c.json({ error: 'The stack is empty: add a comment before sending' }, 400)
-    stack.lock()
+    if (stack.list().length === 0) return c.json({ error: 'The stack is empty: add a comment before sending' }, 400)
+    if (!stack.list().some(isSendable)) return c.json({ error: 'Nothing to send: every comment is finished. Clear them or add a comment' }, 400)
+    const comments = promptOrder(stack.begin())
+    sent = comments.map((i) => i.id)
+    reader = createReportReader(sent.map(promptId))
     setStatus({ state: 'running' })
     try {
       current = deps.agent.run({ prompt: buildPrompt(comments), cwd: deps.cwd }, onEvent)
@@ -93,9 +133,9 @@ export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
 
   app.get('/events', (c) =>
     streamSSE(c, async (stream) => {
-      const queue: RunStatus[] = [status]
+      const queue: ReviewSnapshot[] = [snapshot()]
       let wake: (() => void) | undefined
-      const listener = (s: RunStatus) => {
+      const listener = (s: ReviewSnapshot) => {
         queue.push(s)
         wake?.()
       }

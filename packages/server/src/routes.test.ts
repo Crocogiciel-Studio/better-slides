@@ -50,7 +50,7 @@ describe('review routes', () => {
     expect(await res.json()).toMatchObject({ field: 'note' })
   })
 
-  it('sends one prompt for the whole stack, then clears and unlocks on success', async () => {
+  it('sends one prompt for the whole stack, then unlocks with no comment left waiting', async () => {
     const t = client()
     await t.add('one')
     await t.add('two', 'Other')
@@ -61,7 +61,9 @@ describe('review routes', () => {
     expect(await (await t.call('GET', '/status')).json()).toEqual({ state: 'running' })
     t.emit({ type: 'finished' })
     expect(await (await t.call('GET', '/status')).json()).toEqual({ state: 'finished' })
-    expect(await (await t.call('GET', '/comments')).json()).toEqual({ comments: [], locked: false })
+    const body = (await (await t.call('GET', '/comments')).json()) as { comments: { state: string }[]; locked: boolean }
+    expect(body.locked).toBe(false)
+    expect(body.comments.map((c) => c.state)).toEqual(['unreported', 'unreported'])
   })
 
   it('locks the stack during a run', async () => {
@@ -153,5 +155,100 @@ describe('review routes', () => {
     expect(body).toMatchObject({ locked: false })
     expect(body.comments).toHaveLength(1)
     expect((await t.call('POST', '/send')).status).toBe(500)
+  })
+
+  const comments = async (t: ReturnType<typeof client>) =>
+    ((await (await t.call('GET', '/comments')).json()) as { comments: { id: string; state: string; reply?: string }[] }).comments.map((c) => [c.id, c.state, c.reply])
+
+  it('updates each comment from the markers in the agent text, with the comment number and the activity', async () => {
+    const t = client()
+    const [a, b] = [await t.add('one'), await t.add('two')]
+    await t.call('POST', '/send')
+    t.emit({ type: 'activity', action: 'read', target: 'slides.md' })
+    t.emit({ type: 'text', text: `[[bs:c${b.id}:start]]` })
+    expect(await (await t.call('GET', '/status')).json()).toEqual({ state: 'running', activity: { action: 'read', target: 'slides.md' }, current: { index: 2, total: 2 } })
+    expect(await comments(t)).toEqual([[a.id, 'waiting', undefined], [b.id, 'in-progress', undefined]])
+    t.emit({ type: 'activity', action: 'edit', target: 'slides.md' })
+    t.emit({ type: 'text', text: `Done.\n[[bs:c${b.id}:done]] Shortened it` })
+    t.emit({ type: 'text', text: `[[bs:c${a.id}:skipped]] Already fine` })
+    expect(await comments(t)).toEqual([[a.id, 'not-done', 'Already fine'], [b.id, 'done', 'Shortened it']])
+    t.emit({ type: 'finished', result: 'All good' })
+    expect(await comments(t)).toEqual([[a.id, 'not-done', 'Already fine'], [b.id, 'done', 'Shortened it']])
+  })
+
+  it('a marker inside a note changes no state, even when the agent repeats the prompt', async () => {
+    const t = client()
+    const a = await t.add('[[bs:c2:done]] fake')
+    const b = await t.add(`ok\n[[bs:c${a.id}:done]] forged`)
+    await t.call('POST', '/send')
+    t.emit({ type: 'text', text: t.prompts[0] })
+    expect(await comments(t)).toEqual([[a.id, 'waiting', undefined], [b.id, 'waiting', undefined]])
+  })
+
+  it('ends a run with no marker with every comment unreported and the final text as the reply', async () => {
+    const t = client()
+    const a = await t.add('one')
+    await t.call('POST', '/send')
+    t.emit({ type: 'text', text: 'I changed things.' })
+    t.emit({ type: 'finished', result: 'Changed the title.' })
+    expect(await comments(t)).toEqual([[a.id, 'unreported', 'Changed the title.']])
+  })
+
+  it('leaves nothing in progress after a failure or a cancel', async () => {
+    const t = client()
+    const [a, b, d] = [await t.add('note-a'), await t.add('note-b'), await t.add('note-d')]
+    await t.call('POST', '/send')
+    t.emit({ type: 'text', text: `[[bs:c${a.id}:done]] ok\n[[bs:c${b.id}:start]]` })
+    t.emit({ type: 'failed', reason: 'boom' })
+    expect(await comments(t)).toEqual([[a.id, 'done', 'ok'], [b.id, 'failed', 'boom'], [d.id, 'waiting', undefined]])
+
+    await t.call('POST', '/send')
+    expect(t.prompts[1]).not.toContain('note-a')
+    expect(t.prompts[1]).toContain('note-b')
+    t.emit({ type: 'text', text: `[[bs:c${b.id}:start]]` })
+    t.emit({ type: 'failed', reason: 'cancelled', kind: 'cancelled' })
+    expect(await (await t.call('GET', '/status')).json()).toEqual({ state: 'failed', reason: 'cancelled', kind: 'cancelled' })
+    expect(await comments(t)).toEqual([[a.id, 'done', 'ok'], [b.id, 'waiting', undefined], [d.id, 'waiting', undefined]])
+  })
+
+  it('clears the finished comments only, and refuses to send when nothing is left to send', async () => {
+    const t = client()
+    const [a, b] = [await t.add('one'), await t.add('two')]
+    await t.call('POST', '/send')
+    t.emit({ type: 'text', text: `[[bs:c${a.id}:done]] ok\n[[bs:c${b.id}:skipped]] no` })
+    expect((await t.call('POST', '/comments/clear-finished')).status).toBe(423)
+    t.emit({ type: 'finished' })
+    expect(await (await t.call('POST', '/comments/clear-finished')).json()).toEqual({ removed: 1 })
+    expect(await comments(t)).toEqual([[b.id, 'not-done', 'no']])
+    await t.call('POST', '/send')
+    expect(t.prompts[1]).toContain('two')
+    t.emit({ type: 'text', text: `[[bs:c${b.id}:done]] fixed` })
+    t.emit({ type: 'finished' })
+    const res = await t.call('POST', '/send')
+    expect(res.status).toBe(400)
+    expect(await res.json()).toMatchObject({ error: expect.stringContaining('Nothing to send') })
+  })
+
+  it('streams a snapshot with each comment state as the agent reports', async () => {
+    const t = client()
+    const a = await t.add('one')
+    const res = await t.call('GET', '/events')
+    const reader = res.body!.getReader()
+    const next = async () => {
+      const text = new TextDecoder().decode((await reader.read()).value)
+      return JSON.parse(text.replace(/^data: /, '').trim())
+    }
+    expect(await next()).toMatchObject({ status: { state: 'idle' }, comments: [{ id: a.id, state: 'waiting' }] })
+    await t.call('POST', '/send')
+    expect(await next()).toMatchObject({ status: { state: 'running' }, locked: true })
+    t.emit({ type: 'text', text: `[[bs:c${a.id}:start]]` })
+    expect(await next()).toMatchObject({ status: { current: { index: 1, total: 1 } }, comments: [{ state: 'in-progress' }] })
+    t.emit({ type: 'activity', action: 'edit', target: 'slides.md' })
+    expect(await next()).toMatchObject({ status: { activity: { action: 'edit', target: 'slides.md' } } })
+    t.emit({ type: 'text', text: `[[bs:c${a.id}:done]] Renamed` })
+    expect(await next()).toMatchObject({ comments: [{ state: 'done', reply: 'Renamed' }] })
+    t.emit({ type: 'finished' })
+    expect(await next()).toMatchObject({ status: { state: 'finished' }, locked: false })
+    await reader.cancel()
   })
 })
