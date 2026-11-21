@@ -3,23 +3,46 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { AgentEvent } from '../agent.ts'
-import { createClaudeCodeAgent } from './claude-code.ts'
+import { createClaudeCodeAgent, parseStreamLine } from './claude-code.ts'
 
 const fake = new URL('../../test/fixtures/fake-claude.mjs', import.meta.url).pathname
 const launcher = { command: process.execPath, args: [fake] }
 
-async function run(prompt: string, options = {}) {
+async function run(prompt: string, options = {}, cwd = tmpdir()) {
   const events: AgentEvent[] = []
   const agent = createClaudeCodeAgent({ launcher, ...options })
-  const handle = agent.run({ prompt, cwd: tmpdir() }, (e) => events.push(e))
+  const handle = agent.run({ prompt, cwd }, (e) => events.push(e))
   await handle.done
   return events
 }
 
 describe('claude-code adapter', () => {
-  it('emits running then finished', async () => {
-    const events = await run('do it')
-    expect(events.map((e) => e.type)).toEqual(['running', 'progress', 'finished'])
+  it('emits running, the agent text, its file activity and finished with the final text', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'deck-'))
+    const events = await run('Slide 2\n- c1: text "Intro", selector `h1`\n  Change: Shorter\n- c2: text "X", selector `p`\n  Change: SKIP it', {}, cwd)
+    expect(events).toEqual([
+      { type: 'running' },
+      { type: 'text', text: 'working' },
+      { type: 'activity', action: 'read', target: 'slides.md' },
+      { type: 'text', text: '[[bs:c1:start]]' },
+      { type: 'activity', action: 'edit', target: 'slides.md' },
+      { type: 'text', text: 'Applied it.\n[[bs:c1:done]] Changed as asked: Shorter' },
+      { type: 'text', text: '[[bs:c2:start]]' },
+      { type: 'text', text: '[[bs:c2:skipped]] Not done: the deck has no data for this.' },
+      { type: 'finished', result: 'I applied the review comments to slides.md.' },
+    ])
+  })
+
+  it('reassembles event lines split across output chunks', async () => {
+    const events = await run('SPLIT\n- c1: text "a", selector `p`\n  Change: b')
+    expect(events.filter((e) => e.type === 'text').map((e) => e.type === 'text' && e.text)).toContain('[[bs:c1:start]]')
+    expect(events.at(-1)?.type).toBe('finished')
+  })
+
+  it('fails mid-run and reports what happened before', async () => {
+    const events = await run('- c1: text "a", selector `p`\n  Change: ok\n- c2: text "b", selector `p`\n  Change: CRASH')
+    expect(events.some((e) => e.type === 'text' && e.text.includes('[[bs:c1:done]]'))).toBe(true)
+    expect(events.at(-1)).toEqual({ type: 'failed', reason: expect.stringContaining('crashed mid-run') })
   })
 
   it('emits failed with the reason when the CLI errors', async () => {
@@ -59,7 +82,7 @@ describe('claude-code adapter', () => {
     await until(() => events.some((e) => e.type === 'running'))
     handle.cancel()
     await handle.done
-    expect(events.at(-1)).toEqual({ type: 'failed', reason: 'cancelled' })
+    expect(events.at(-1)).toEqual({ type: 'failed', reason: 'cancelled', kind: 'cancelled' })
   })
 
   it('escalates to SIGKILL when the CLI ignores SIGTERM', async () => {
@@ -67,10 +90,10 @@ describe('claude-code adapter', () => {
     const handle = createClaudeCodeAgent({ launcher, killGraceMs: 200 }).run({ prompt: 'IGNORE_TERM', cwd: tmpdir() }, (e) =>
       events.push(e),
     )
-    await until(() => events.some((e) => e.type === 'progress'))
+    await until(() => events.some((e) => e.type === 'text'))
     handle.cancel()
     await handle.done
-    expect(events.at(-1)).toEqual({ type: 'failed', reason: 'cancelled' })
+    expect(events.at(-1)).toEqual({ type: 'failed', reason: 'cancelled', kind: 'cancelled' })
   })
 
   it('fails the run and stops the CLI when it exceeds the timeout', async () => {
@@ -91,6 +114,49 @@ describe('claude-code adapter', () => {
     const handle = createClaudeCodeAgent({ shell }).run({ prompt: 'x', cwd: tmpdir() }, (e) => events.push(e))
     handle.cancel()
     await handle.done
-    expect(events).toEqual([{ type: 'failed', reason: 'cancelled' }])
+    expect(events).toEqual([{ type: 'failed', reason: 'cancelled', kind: 'cancelled' }])
+  })
+})
+
+describe('stream-json mapping', () => {
+  const cwd = '/home/me/deck'
+  const line = (content: unknown) => JSON.stringify({ type: 'assistant', message: { content } })
+  const tool = (name: string, input?: unknown) => parseStreamLine(line([{ type: 'tool_use', name, input }]), cwd).events
+
+  it('maps file tools to generic actions with a path relative to the deck', () => {
+    expect(tool('Read', { file_path: '/home/me/deck/slides.md' })).toEqual([{ type: 'activity', action: 'read', target: 'slides.md' }])
+    expect(tool('Edit', { file_path: '/home/me/deck/pages/intro.md' })).toEqual([{ type: 'activity', action: 'edit', target: 'pages/intro.md' }])
+    expect(tool('Write', { file_path: 'slides.md' })).toEqual([{ type: 'activity', action: 'edit', target: 'slides.md' }])
+    expect(tool('Grep', { pattern: 'Install' })).toEqual([{ type: 'activity', action: 'search', target: 'Install' }])
+    expect(tool('Glob', { pattern: '/home/me/deck/**/*.md' })).toEqual([{ type: 'activity', action: 'search', target: '*.md' }])
+  })
+
+  it('never shows an absolute path outside the deck', () => {
+    expect(tool('Read', { file_path: '/etc/hosts' })).toEqual([{ type: 'activity', action: 'read', target: 'hosts' }])
+    expect(tool('Read', { file_path: '/home/me/other/secret.md' })).toEqual([{ type: 'activity', action: 'read', target: 'secret.md' }])
+  })
+
+  it('gives other for an unknown tool or a missing input', () => {
+    expect(tool('Bash', { command: 'ls' })).toEqual([{ type: 'activity', action: 'other' }])
+    expect(tool('Read')).toEqual([{ type: 'activity', action: 'other' }])
+    expect(tool('Read', 'not an object')).toEqual([{ type: 'activity', action: 'other' }])
+    expect(tool('Read', {})).toEqual([{ type: 'activity', action: 'read' }])
+  })
+
+  it('keeps text and tool calls of one message in order', () => {
+    const events = parseStreamLine(line([{ type: 'text', text: 'a' }, { type: 'tool_use', name: 'Read', input: { file_path: 'slides.md' } }, { type: 'thinking', thinking: 'x' }]), cwd).events
+    expect(events.map((e) => e.type)).toEqual(['text', 'activity'])
+  })
+
+  it('reads the final text and the error flag of a result', () => {
+    expect(parseStreamLine(JSON.stringify({ type: 'result', is_error: false, result: 'done' }), cwd)).toEqual({ events: [], result: 'done' })
+    expect(parseStreamLine(JSON.stringify({ type: 'result', is_error: true, result: 'no' }), cwd)).toEqual({ events: [], error: 'no' })
+  })
+
+  it('ignores unknown types, odd fields and lines that are not JSON, without throwing', () => {
+    for (const l of ['', 'not json', 'null', '42', '[]', '{"type":"system","subtype":"init"}', '{"type":"user","message":{"content":[{"type":"tool_result"}]}}',
+      '{"type":"assistant"}', '{"type":"assistant","message":{"content":"text"}}', '{"type":"assistant","message":{"content":[null,1,{"type":"text","text":5}]}}', '{"type":"stream_event","event":{}}']) {
+      expect(parseStreamLine(l, cwd).events, l).toEqual([])
+    }
   })
 })

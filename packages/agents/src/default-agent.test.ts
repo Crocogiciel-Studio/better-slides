@@ -11,7 +11,7 @@ describe('createDefaultAgent', () => {
     const env = { BETTER_SLIDE_FAKE_AGENT: fake, BETTER_SLIDE_TEST: '1' }
     const run = createDefaultAgent(env).run({ prompt: 'go', cwd: tmpdir() }, (e) => events.push(e))
     await run.done
-    expect(events.at(-1)).toEqual({ type: 'finished' })
+    expect(events.at(-1)).toMatchObject({ type: 'finished' })
   })
 })
 
