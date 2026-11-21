@@ -19,6 +19,9 @@ A Slidev author can review a running deck by attaching comments to slide element
 - The review interface never covers the slides: the slide canvas stays fully visible and is resized to make room for the review sidebar.
 - Navigating the deck with the keyboard (arrows, page keys, space) keeps working after any interaction with the review interface, except while typing a note.
 - The pending comments are listed in a sidebar where each note is readable in full.
+- During a run, the author sees which comment the agent is working on and what the agent is doing, not only that it is running.
+- The agent answers each comment with a short reply saying what it changed or why it did not, and the author can read it after the run.
+- A run never stays stuck because the agent skipped the reporting format: a comment the agent did not report on ends with a clear state.
 
 ## Non-goals
 
@@ -41,6 +44,8 @@ A Slidev author can review a running deck by attaching comments to slide element
 - With review mode on, the slide area is narrower and no part of the review interface overlaps it, at common window sizes, in light and dark mode.
 - After toggling review mode, selecting an element, adding, removing, sending and cancelling, the arrow keys still change the slide.
 - The sidebar shows the comments grouped by slide, each with its whole note, and stays usable with many comments.
+- During a run, each comment shows waiting, in progress, done, not done or failed, and the live activity of the agent is visible.
+- After a run, each processed comment shows the agent's reply and stays visible until the author clears the finished ones. Comments not done or failed stay in the stack for the next send.
 
 ## Open Questions
 
