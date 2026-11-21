@@ -35,11 +35,23 @@ export type RunStatus =
       current?: { index: number; total: number }
     }
   | { state: 'finished' }
-  | { state: 'failed'; reason: string; kind?: 'cancelled' }
+  /** `auth`: the agent is not logged in; its comments go back to waiting. */
+  | { state: 'failed'; reason: string; kind?: 'cancelled' | 'auth' }
 
 /** Everything the sidebar shows, pushed on every change. */
 export interface ReviewSnapshot {
   status: RunStatus
   comments: StackItem[]
   locked: boolean
+  /** Whether the agent can run; absent until the first check ends. */
+  agent?: AgentReadiness
+}
+
+/** Whether the agent can run now. `hint` is a sentence for the author. */
+export interface AgentReadiness {
+  /** Display name of the agent. */
+  agent: string
+  ready: boolean
+  reason?: 'not-installed' | 'not-logged-in' | 'api-billing' | 'unknown'
+  hint?: string
 }

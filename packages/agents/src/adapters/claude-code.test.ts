@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { AgentEvent } from '../agent.ts'
-import { createClaudeCodeAgent, parseStreamLine } from './claude-code.ts'
+import { createClaudeCodeAgent, parseStreamLine, READINESS, readinessFromAuthStatus } from './claude-code.ts'
 
 const fake = new URL('../../test/fixtures/fake-claude.mjs', import.meta.url).pathname
 const launcher = { command: process.execPath, args: [fake] }
@@ -158,5 +158,62 @@ describe('stream-json mapping', () => {
       '{"type":"assistant"}', '{"type":"assistant","message":{"content":"text"}}', '{"type":"assistant","message":{"content":[null,1,{"type":"text","text":5}]}}', '{"type":"stream_event","event":{}}']) {
       expect(parseStreamLine(l, cwd).events, l).toEqual([])
     }
+  })
+})
+
+describe('login readiness', () => {
+  const status = (auth: string, options = {}) =>
+    createClaudeCodeAgent({ launcher, env: { PATH: process.env.PATH, FAKE_CLAUDE_AUTH: auth }, ...options }).status!()
+  const json = (o: object) => JSON.stringify(o)
+
+  it('is ready when logged in on a claude.ai subscription, and returns no account field', async () => {
+    const r = await createClaudeCodeAgent({ launcher, env: { PATH: process.env.PATH } }).status!()
+    expect(r).toEqual({ agent: 'Claude Code', ready: true })
+    expect(JSON.stringify(r)).not.toContain('example.invalid')
+  })
+
+  it('is not ready when logged out, with the login hint', async () => {
+    expect(await status(json({ loggedIn: false, authMethod: 'none' }))).toEqual(READINESS.notLoggedIn)
+    expect(READINESS.notLoggedIn.hint).toContain('run `claude` then `/login`')
+  })
+
+  it('is not ready when it would bill an API key or another provider', async () => {
+    expect(await status(json({ loggedIn: true, authMethod: 'api_key', apiProvider: 'firstParty' }))).toEqual(READINESS.apiBilling)
+    expect(await status(json({ loggedIn: true, authMethod: 'claude.ai', apiProvider: 'bedrock' }))).toEqual(READINESS.apiBilling)
+    expect(readinessFromAuthStatus(json({ loggedIn: true, authMethod: 'console' }))).toEqual(READINESS.apiBilling)
+  })
+
+  it('is unknown, still allowing a send, on malformed or unexpected output', async () => {
+    expect(await status('not json')).toEqual(READINESS.unknown)
+    for (const out of ['', 'null', '[]', json({}), json({ loggedIn: 'yes' }), json({ loggedIn: true }), json({ loggedIn: true, authMethod: 'something-new' })]) {
+      expect(readinessFromAuthStatus(out), out).toEqual(READINESS.unknown)
+    }
+    expect(READINESS.unknown.ready).toBe(true)
+  })
+
+  it('is unknown when the check times out', async () => {
+    const started = Date.now()
+    expect(await status('HANG', { statusTimeoutMs: 300 })).toEqual(READINESS.unknown)
+    expect(Date.now() - started).toBeLessThan(3000)
+  })
+
+  it('is not installed when the CLI is missing or the login shell cannot find it', async () => {
+    expect(await createClaudeCodeAgent({ launcher: { command: '/nonexistent/claude' } }).status!()).toEqual(READINESS.notInstalled)
+    expect(await createClaudeCodeAgent({ shell: '/bin/false' }).status!()).toEqual(READINESS.notInstalled)
+  })
+
+  it('checks with the same stripped environment as a run', async () => {
+    const out = join(mkdtempSync(join(tmpdir(), 'env-')), 'env.json')
+    await createClaudeCodeAgent({ launcher, env: { PATH: process.env.PATH, ANTHROPIC_API_KEY: 'secret', CLAUDE_CODE_USE_BEDROCK: '1', FAKE_CLAUDE_ENV_OUT: out } }).status!()
+    const names: string[] = JSON.parse(readFileSync(out, 'utf8'))
+    expect(names).toContain('FAKE_CLAUDE_ENV_OUT')
+    expect(names).not.toContain('ANTHROPIC_API_KEY')
+    expect(names).not.toContain('CLAUDE_CODE_USE_BEDROCK')
+  })
+
+  it('reports an expired login at run time as an auth failure with the hint', async () => {
+    const events = await run('AUTH_FAIL')
+    expect(events.at(-1)).toEqual({ type: 'failed', kind: 'auth', reason: expect.stringContaining('run `claude` then `/login`') })
+    expect((events.at(-1) as { reason: string }).reason).toContain('OAuth session expired')
   })
 })

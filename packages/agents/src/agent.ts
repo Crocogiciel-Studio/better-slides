@@ -1,6 +1,6 @@
-import type { Activity } from '@better-slide/shared'
+import type { Activity, AgentReadiness } from '@better-slide/shared'
 
-export type { Activity } from '@better-slide/shared'
+export type { Activity, AgentReadiness } from '@better-slide/shared'
 
 /** Progress of one agent run, with no CLI-specific detail. */
 export type AgentEvent =
@@ -11,8 +11,8 @@ export type AgentEvent =
   | ({ type: 'activity' } & Activity)
   /** `result` is the agent's final text, when it gave one. */
   | { type: 'finished'; result?: string }
-  /** `kind` is `cancelled` after `cancel()`. */
-  | { type: 'failed'; reason: string; kind?: 'cancelled' }
+  /** `kind` is `cancelled` after `cancel()`, `auth` when the CLI is not logged in. */
+  | { type: 'failed'; reason: string; kind?: 'cancelled' | 'auth' }
 
 export interface AgentRequest {
   prompt: string
@@ -31,4 +31,6 @@ export interface AgentRun {
 export interface Agent {
   readonly name: string
   run(request: AgentRequest, onEvent: (event: AgentEvent) => void): AgentRun
+  /** Whether a run can start now: installed, logged in, on the user's subscription. Never rejects. */
+  status?(): Promise<AgentReadiness>
 }

@@ -1,6 +1,6 @@
-import { spawn } from 'node:child_process'
+import { execFile, spawn } from 'node:child_process'
 import { basename, isAbsolute, relative } from 'node:path'
-import type { Activity, Agent, AgentEvent, AgentRequest, AgentRun } from '../agent.ts'
+import type { Activity, Agent, AgentEvent, AgentReadiness, AgentRequest, AgentRun } from '../agent.ts'
 import { buildAgentEnv, resolveCommand } from '../environment.ts'
 
 export interface ClaudeCodeOptions {
@@ -13,7 +13,53 @@ export interface ClaudeCodeOptions {
   timeoutMs?: number
   /** Wait between SIGTERM and SIGKILL when stopping a run. Defaults to 3 s. */
   killGraceMs?: number
+  /** Limit for the login check (`claude auth status`). Defaults to 5 s. */
+  statusTimeoutMs?: number
 }
+
+const LABEL = 'Claude Code'
+const LOGIN_HINT = 'run `claude` then `/login`'
+
+/** The readiness results, as the sidebar shows them. */
+export const READINESS = {
+  ready: { agent: LABEL, ready: true },
+  notInstalled: { agent: LABEL, ready: false, reason: 'not-installed', hint: `${LABEL} not found: install it, then ${LOGIN_HINT}` },
+  notLoggedIn: { agent: LABEL, ready: false, reason: 'not-logged-in', hint: `Not logged in: ${LOGIN_HINT}` },
+  apiBilling: {
+    agent: LABEL,
+    ready: false,
+    reason: 'api-billing',
+    hint: `Uses API billing, not your subscription: ${LOGIN_HINT} with your Claude account`,
+  },
+  /** The login could not be confirmed: sending stays possible, and a login failure at run time is still reported. */
+  unknown: { agent: LABEL, ready: true, reason: 'unknown', hint: `Could not confirm the ${LABEL} login; a send fails if it expired` },
+} satisfies Record<string, AgentReadiness>
+
+/**
+ * Maps `claude auth status --json` to a readiness. Reads only `loggedIn`, `authMethod` and `apiProvider`;
+ * the account fields it also prints are never read. Anything unexpected gives `unknown`; this never throws.
+ * `loginExpiresAt` is not used: it is not known whether it is the session's limit or a token's.
+ */
+export function readinessFromAuthStatus(stdout: string): AgentReadiness {
+  let status: unknown
+  try {
+    status = JSON.parse(stdout)
+  } catch {
+    return READINESS.unknown
+  }
+  if (!status || typeof status !== 'object') return READINESS.unknown
+  const { loggedIn, authMethod, apiProvider } = status as Record<string, unknown>
+  if (loggedIn === false) return READINESS.notLoggedIn
+  if (loggedIn !== true) return READINESS.unknown
+  if (typeof apiProvider === 'string' && apiProvider !== 'firstParty') return READINESS.apiBilling
+  if (typeof authMethod !== 'string') return READINESS.unknown
+  if (/claude\.ai/i.test(authMethod)) return READINESS.ready
+  if (/api|key|console/i.test(authMethod)) return READINESS.apiBilling
+  return READINESS.unknown
+}
+
+/** The CLI's wording when its login is missing or expired, such as "Failed to authenticate: OAuth session expired". */
+const AUTH_ERROR = /authenticat|oauth|\blog ?in\b|\b401\b/i
 
 const DEFAULT_TIMEOUT_MS = 10 * 60_000
 const DEFAULT_KILL_GRACE_MS = 3_000
@@ -97,8 +143,27 @@ export function parseStreamLine(line: string, cwd: string): { events: AgentEvent
 
 /** Runs the user's installed Claude Code CLI headless, on their own login. */
 export function createClaudeCodeAgent(options: ClaudeCodeOptions = {}): Agent {
+  const findLauncher = async (): Promise<ClaudeCodeOptions['launcher']> =>
+    options.launcher ?? (await resolveCommand('claude', { shell: options.shell, env: options.env }).then((command) => (command ? { command } : undefined)))
+
   return {
     name: 'claude-code',
+    async status(): Promise<AgentReadiness> {
+      const launcher = await findLauncher()
+      if (!launcher) return READINESS.notInstalled
+      return new Promise((resolve) => {
+        execFile(
+          launcher.command,
+          [...(launcher.args ?? []), 'auth', 'status', '--json'],
+          { env: buildAgentEnv(options.env ?? process.env), timeout: options.statusTimeoutMs ?? 5_000, killSignal: 'SIGKILL', maxBuffer: 64 * 1024 },
+          (error, stdout) => {
+            if ((error as NodeJS.ErrnoException | null)?.code === 'ENOENT') return resolve(READINESS.notInstalled)
+            // A non-zero exit can still print the status (logged out); a timeout prints nothing and gives unknown.
+            resolve(readinessFromAuthStatus(String(stdout ?? '')))
+          },
+        ).stdin?.end()
+      })
+    },
     run(request: AgentRequest, onEvent: (event: AgentEvent) => void): AgentRun {
       let child: ReturnType<typeof spawn> | undefined
       let cancelled = false
@@ -119,11 +184,7 @@ export function createClaudeCodeAgent(options: ClaudeCodeOptions = {}): Agent {
       }
 
       const done = (async () => {
-        const launcher: ClaudeCodeOptions['launcher'] =
-          options.launcher ??
-          (await resolveCommand('claude', { shell: options.shell, env: options.env }).then((command) =>
-            command ? { command } : undefined,
-          ))
+        const launcher = await findLauncher()
         if (!launcher) return emit({ type: 'failed', reason: 'claude CLI not found: install Claude Code and log in' })
         if (cancelled) return emit({ type: 'failed', reason: 'cancelled', kind: 'cancelled' })
 
@@ -168,7 +229,10 @@ export function createClaudeCodeAgent(options: ClaudeCodeOptions = {}): Agent {
             if (cancelled) emit({ type: 'failed', reason: 'cancelled', kind: 'cancelled' })
             else if (timedOut) emit({ type: 'failed', reason: `agent timed out after ${Math.round((options.timeoutMs ?? DEFAULT_TIMEOUT_MS) / 1000)} s` })
             else if (code === 0 && !reported) emit({ type: 'finished', result })
-            else emit({ type: 'failed', reason: reported ?? (stderr.trim() || `agent exited with code ${code}`) })
+            else {
+              const reason = reported ?? (stderr.trim() || `agent exited with code ${code}`)
+              emit(AUTH_ERROR.test(reason) ? { type: 'failed', reason: `${LABEL} login missing or expired: ${LOGIN_HINT} (${reason.slice(0, 120)})`, kind: 'auth' } : { type: 'failed', reason })
+            }
             resolve()
           })
           proc.stdin.on('error', () => {})
