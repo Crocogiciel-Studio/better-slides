@@ -22,6 +22,8 @@ A Slidev author can review a running deck by attaching comments to slide element
 - During a run, the author sees which comment the agent is working on and what the agent is doing, not only that it is running.
 - The agent answers each comment with a short reply saying what it changed or why it did not, and the author can read it after the run.
 - A run never stays stuck because the agent skipped the reporting format: a comment the agent did not report on ends with a clear state.
+- Better Slide checks that the agent is installed, logged in and on the author's subscription before a send, and never starts a run it knows would fail on login or bill an API.
+- The login check reads only whether the agent is logged in and how it is billed, never the account details.
 
 ## Non-goals
 
@@ -46,6 +48,8 @@ A Slidev author can review a running deck by attaching comments to slide element
 - The sidebar shows the comments grouped by slide, each with its whole note, and stays usable with many comments.
 - During a run, each comment shows waiting, in progress, done, not done or failed, and the live activity of the agent is visible.
 - After a run, each processed comment shows the agent's reply and stays visible until the author clears the finished ones. Comments not done or failed stay in the stack for the next send.
+- When the agent is not logged in, not installed or would bill an API, the sidebar says so with the fix, Send is disabled, and a check again control updates it.
+- When a run fails on authentication, the author is told to log in again and the comments stay in the stack for the next send.
 
 ## Open Questions
 

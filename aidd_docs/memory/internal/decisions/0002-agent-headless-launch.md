@@ -25,6 +25,13 @@ Status: accepted (2026-11-20). Based on `claude --version` (2.1.329) and `claude
   - a non-zero exit -> failed with the end of stderr; `cancel()` -> failed of kind `cancelled`.
 - Per-comment report: the prompt gives each comment an id (`c<n>`) and asks for `[[bs:<id>:start]]`, then `[[bs:<id>:done]] <reply>` or `[[bs:<id>:skipped]] <reason>`. `packages/review/src/report.ts` reads them from `text` events only.
 
+## Login readiness (added 2026-11-21)
+
+- `claude auth status --json` (seen on 2.1.329, read-only, no prompt sent) exits 0 and prints JSON with `loggedIn`, `authMethod` (`claude.ai` on a subscription), `apiProvider` (`firstParty`), `loginExpiresAt`, and account fields. The adapter reads only `loggedIn`, `authMethod` and `apiProvider`; account fields are never read, logged, returned or shown.
+- Mapping: CLI not found -> not installed; `loggedIn: false` -> not logged in (hint: run `claude` then `/login`); `apiProvider` other than `firstParty`, or an `authMethod` naming an API key or the console -> API billing, not ready; `authMethod` matching `claude.ai` -> ready. Anything else, malformed output or the 5 s timeout -> unknown, which still allows a send.
+- It runs with the same stripped environment and command lookup as a run. The server caches the answer 30 s, refreshes it on demand and right before every send.
+- At run time, a failure whose text mentions authentication, OAuth, login or 401 is reported as an auth failure with the login hint; its comments go back to waiting.
+
 ## Unverified
 
 - No prompt was sent to the real CLI (it would spend the user's subscription). A real run under the user's login is unverified.
@@ -32,3 +39,5 @@ Status: accepted (2026-11-20). Based on `claude --version` (2.1.329) and `claude
 - That `acceptEdits` plus the allow list is enough for edits without a permission prompt.
 - The event mapping above is still unverified against a real run: the `assistant`/`tool_use`/`result` shapes and the tool names come from the commonly documented format and are exercised only with `fake-claude.mjs`. If the real stream differs, activity shows less (an unknown shape is ignored, never a crash) and comments end `unconfirmed` with the final text.
 - Whether the real agent prints the report markers reliably is unknown; the run-end fallback exists for that case.
+- `auth status` can report `loggedIn: true` for a session that turns out expired at run time (the author's real run failed with "Failed to authenticate: OAuth session expired and could not be refreshed"); that is why the run-time auth path exists. `loginExpiresAt` is not used: whether it is the session's limit is unknown. The `authMethod` values for an API key or the console are guessed (`api`, `key`, `console`); only `claude.ai` was observed.
+- Where the real CLI prints an expired-login error (result event, stderr, or assistant text) is unverified; the result text and stderr are matched.

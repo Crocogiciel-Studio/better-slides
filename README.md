@@ -15,6 +15,8 @@ In the preview, move the mouse to the bottom-left to reveal Slidev's navigation 
 
 During a run, each comment card shows its state: **Waiting**, **In progress**, **Done**, **Not done** or **Failed**. The footer says what the agent is doing (for example *Editing slides.md*) and which comment it is on (*Comment 2 of 3*), with **Cancel**. After the run, each comment keeps the agent's one-line reply: what it changed, or why it did not. Done comments stay until you press **Clear finished**. Not done and failed comments stay in the stack and are sent again with the next **Send stack**; remove them if you do not want that. If the agent never reported on a comment, the card says **Unconfirmed** and shows the agent's final text instead: check the slide yourself. A cancel or a failure leaves nothing in progress: reported comments keep their outcome, the others go back to waiting.
 
+Next to **Send stack**, the sidebar says whether the agent can run: *Claude Code: ready*, *Not logged in: run `claude` then `/login`*, *Claude Code not found*, or *Uses API billing, not your subscription*. Send is disabled until it is ready; fix it in a terminal, then press **Check again**. Better Slide asks `claude auth status` only whether you are logged in and how you are billed, never your account details. If a run still fails on login, the sidebar says so and your comments stay waiting for the next send.
+
 The addon is not published yet: `slidev-addon-better-slide` is private (version 0.0.0), so `npm install` cannot fetch it. It works only inside this workspace. To review your own deck:
 
 1. Put the deck in a new folder under `examples/` (the workspace includes `examples/*`), for example `examples/my-deck/` with a `slides.md` and a `package.json` modelled on `examples/demo-deck/package.json`.
@@ -45,6 +47,7 @@ Later milestones add a library to find your decks and past reviews again, and th
 - The rendered element is tied to the source by slide, text excerpt and selector. A line number is added when the excerpt is found in the slide, as a best-effort hint only: it can be missing or point at the first of several matches ([decision 0001](aidd_docs/memory/internal/decisions/0001-element-source-link.md)).
 - The deck can only be reviewed on loopback, not with `--host`.
 - Terms of use: whether a provider allows its subscription to be used through a third-party tool is not settled, and the sources found disagree. Better Slide only launches the CLI you installed, as you, and never touches your login. Check Anthropic's and OpenAI's current terms before relying on it.
+- `claude auth status` can say you are logged in while the session has in fact expired; the first send then fails on login and tells you to log in again. A readiness check that cannot be read (new CLI output, timeout) shows a warning but does not block sending.
 - Only Claude Code is supported. The agent layer leaves room for another CLI.
 - The Claude Code launch flags and the shape of its event stream come from the CLI's documented help and are untested against a real run ([decision 0002](aidd_docs/memory/internal/decisions/0002-agent-headless-launch.md)). The per-comment states depend on the agent printing short report markers; when it does not, comments end **Unconfirmed**.
 
