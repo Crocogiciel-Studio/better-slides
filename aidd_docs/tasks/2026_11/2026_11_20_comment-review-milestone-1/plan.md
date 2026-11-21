@@ -20,6 +20,8 @@ Source: `aidd_docs/tasks/2026_11/2026_11_20_comment-review-milestone-1/spec.md`
 | 7   | End to end and documentation | [`phase-7.md`](./phase-7.md) | 6 |
 | 8   | Integrated review interface | [`phase-8.md`](./phase-8.md) | 7 |
 | 9   | Agent feedback per comment | [`phase-9.md`](./phase-9.md) | 8 |
+| 10  | Agent readiness | [`phase-10.md`](./phase-10.md) | 9 |
+| 11  | Selection improvements | [`phase-11.md`](./phase-11.md) | 10 |
 
 ## External sources
 

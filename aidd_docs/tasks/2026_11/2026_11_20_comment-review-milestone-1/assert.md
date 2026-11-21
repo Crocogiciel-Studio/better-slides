@@ -38,3 +38,21 @@
 | `grep -rniE "claude\|codex" packages --include=*.ts --include=*.vue --include=*.mjs -l --exclude-dir=agents --exclude="*.test.ts"` | 1 | no match: pass |
 | `grep -rnE "ANTHROPIC_API_KEY\|OPENAI_API_KEY" packages -l --include=*.ts --include=*.vue --exclude-dir=agents --exclude="*.test.ts"` | 1 | no match: pass |
 | Spec lines on the review interface (bar, never covers, keyboard, grouped readable notes) | n/a | covered by the Chromium test and by viewing the screenshots, see Run 3 |
+
+## Round 4
+
+- Head: `56a4183`
+- Uncommitted changes: yes (docs only: README, memory, spec, plan, phase files; committed after as `af4a341`)
+- Verdict: PASS
+
+| Check | Exit | Failure |
+| --- | --- | --- |
+| `pnpm typecheck` | 0 | |
+| `pnpm test` (14 files, 168 tests, including the Chromium test) | 0 | |
+| `npx vitest run packages/addon/e2e`, three runs in a row (18 tests each) | 0, 0, 0 | |
+| `grep -rniE "claude\|codex" packages --include=*.ts --include=*.vue --include=*.mjs -l --exclude-dir=agents --exclude="*.test.ts" --exclude-dir=node_modules` | 1 | no match: pass |
+| `grep -rnE "ANTHROPIC_API_KEY\|OPENAI_API_KEY" packages -l --include=*.ts --include=*.vue --exclude-dir=agents --exclude="*.test.ts" --exclude-dir=node_modules` | 1 | no match: pass |
+| `grep -rnE "\b(email\|orgId\|orgName\|subscriptionType\|planTier)\b" packages --include=*.ts --include=*.vue -l --exclude-dir=node_modules --exclude="*.test.ts"` (no account field read) | 1 | no match: pass |
+| `grep -rn "fetch(" packages ... --exclude-dir=e2e --exclude="*.test.ts"` outside `addon/components/api.ts` (no own network connection) | 1 | no match: pass |
+
+Not verified: a real Claude Code run and its stream-json shapes; whether the real agent prints the report markers; the `authMethod` value of an API-key or console login; where the real CLI prints an expired-login error; Slidev other than 53.1.0; hash router mode; touch devices; screen readers.

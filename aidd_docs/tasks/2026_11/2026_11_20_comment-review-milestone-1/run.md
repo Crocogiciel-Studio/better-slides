@@ -66,3 +66,47 @@ Not checked in a browser: the run timeout and the SIGKILL escalation (vitest wit
 | 4 | presenter (no toggle, no sidebar, `r` ignored) and overview: no console error or page error; plain Slidev: no toggle, ArrowRight works, no error | pass |
 
 Not checked: a real Claude Code run; Slidev other than 53.1.0; hash router mode and a non-root `base` (the play-mode check handles `base` in a unit test only); touch devices; the Chromium test skip path (written with `describe.skipIf`, not exercised because Chromium is installed here); the reload of the deck after a successful run with the sidebar open (verified by hand in Run 2 with the old UI only); screen readers; zoom other than 100 %. The Slidev bar wraps to two rows at 1024x640 with the sidebar open and the review button lands alone on the top row (Slidev's own wrapping, accepted).
+
+## Run 4
+
+- Head: `56a4183`
+- Left: no real Claude Code run (stand-in CLI only, no prompt sent to `claude`); the stream-json event shapes and the report markers are unverified against the real CLI; `claude auth status --json` was run once read-only to see its field names (only `loggedIn`, `authMethod`, `apiProvider`, `loginExpiresAt` read; account fields never printed); the `authMethod` values for API-key or console logins are guessed; the docs commits `af4a341` and the plan, run and assert files came after the checks, docs only. Commits between code phases do not each typecheck on their own (the shared types change first).
+
+`pnpm typecheck` exit 0; `pnpm test` exit 0, 14 files, 168 tests. `packages/addon/e2e/review-ui.e2e.test.ts` run three times in a row: 18/18 passed each time, exit 0, 65.9 s, 66.1 s, 65.1 s. No process left listening on 3030, 3131 or 3132. Screenshots viewed one by one under the scratchpad `ux/phase9`, `ux/phase10`, `ux/phase11` folders (during and after a run, no-marker fallback, mid-run crash, not logged in, API billing, login failure, whole slide selected, autofocused composer; 1280x720 and 1024x640, light and dark).
+
+| Task | Validation | Result |
+| ---- | ---------- | ------ |
+| 1.1 | not re-run on its own; `pnpm install` and `pnpm test` at `56a4183` | pass |
+| 1.2 | `pnpm install --network-concurrency=4 --force` (needed: missing native rollup binding) | completes |
+| 1.3 | the Chromium test starts `slidev` on the demo deck | serves |
+| 2.1 | `packages/server/src/index.test.ts` | pass |
+| 2.2 | Chromium test: addon layer and toggle rendered | pass |
+| 3.1 | `packages/shared/src/comment.test.ts` | pass |
+| 3.2 | `selection.test.ts` and the Chromium test | pass |
+| 3.3 | decision 0001, updated with whole-slide comments | written |
+| 4.1 | `packages/agents` tests | pass |
+| 4.2 | `environment.test.ts`, and the readiness check's env test | no provider variable reaches the CLI |
+| 4.3 | `claude-code.test.ts` with the stand-in | pass |
+| 4.4 | decision 0002 updated (event mapping, readiness), still unverified against a real run | written |
+| 5.1 | `stack.test.ts` | pass |
+| 5.2 | `prompt.test.ts` | pass |
+| 5.3 | `routes.test.ts`, `end-to-end.test.ts` | pass |
+| 6.1 | `api.test.ts` | pass |
+| 6.2 | Chromium test | pass |
+| 6.3 | Chromium test | pass |
+| 7.1 | `end-to-end.test.ts` | deck edited, no API-key variable reached the agent |
+| 7.2 | assertion greps (see assert round 4) | no match |
+| 7.3 | `pnpm typecheck`, `pnpm test` | exit 0, 168 tests |
+| 8.1 | Chromium: toggle inside `nav` | pass, 3 runs |
+| 8.2 | Chromium: no overlap at 3 sizes x 2 themes | pass, 3 runs |
+| 8.3 | Chromium: keyboard after every interaction (now with autofocus on select) | pass, 3 runs |
+| 8.4 | Chromium: presenter, overview, plain Slidev | pass, 3 runs |
+| 9.1 | `report.test.ts` (normal, interleaved, split at every position, unknown id, duplicates, no markers, neutralised note) and `routes.test.ts` (marker in a note echoed by the agent changes nothing) | pass |
+| 9.2 | `claude-code.test.ts` mapping and tolerance; `routes.test.ts` snapshot stream; Chromium shows "Reading/Editing slides.md" and "Comment N of 3" | pass |
+| 9.3 | `stack.test.ts` after done, skipped, failed, cancel; Chromium: Clear finished keeps the not done comment, Send shows (1) | pass |
+| 9.4 | Chromium: in progress then done, not done with replies; no-marker fallback "Unconfirmed"; mid-run crash `done, failed, waiting`; arrow keys after the run and after Clear finished; screenshots viewed | pass |
+| 10.1 | `claude-code.test.ts`: logged in, logged out, API key, other provider, malformed, timeout, not installed, stripped env, no account field returned | pass |
+| 10.2 | `routes.test.ts`: 30 s cache and refresh, send refused with 409, login failure puts comments back to waiting and re-checks | pass |
+| 10.3 | Chromium: logged-out stand-in disables Send with the hint, Check again restores it, arrows work; login failure at run time; screenshots viewed | pass |
+| 11.1 | Chromium: note focused after select and after the Whole slide control, ArrowRight does not change slide; a second selection keeps the typed note; Escape, Add, Cancel give the keys back; sidebar rectangle unchanged by autofocus | pass |
+| 11.2 | `comment.test.ts`, `prompt.test.ts`, `routes.test.ts`, `selection.test.ts`; Chromium: background click and control select the whole slide, slide unchanged, outline shown, card "Slide 2 · whole slide", light and dark | pass |
