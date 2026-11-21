@@ -18,7 +18,7 @@ export function createClient(fetchFn: typeof fetch = (...a) => fetch(...a), base
   }
   return {
     list: () => call<{ comments: StackItem[]; locked: boolean }>('GET', '/comments'),
-    add: (comment: Omit<Comment, 'line'>) => call<StackItem>('POST', '/comments', comment),
+    add: (comment: Comment) => call<StackItem>('POST', '/comments', comment),
     remove: (id: string) => call<{ ok: true }>('DELETE', `/comments/${id}`),
     clearFinished: () => call<{ removed: number }>('POST', '/comments/clear-finished'),
     /** Whether the agent can run; `refresh` checks again instead of using the server's short cache. */

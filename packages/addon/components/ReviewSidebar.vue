@@ -1,11 +1,20 @@
 <script setup lang="ts">
-import type { CommentState } from '@better-slide/shared'
+import { type CommentState, isWholeSlide } from '@better-slide/shared'
 import ReviewComposer from './ReviewComposer.vue'
 import RunStatus from './RunStatus.vue'
 import { computed } from 'vue'
 import { describeReadiness, hintParts, STATE_LABELS, useReview } from './reviewState'
+import { markSelected, pickCurrentSlide } from './selection'
 
 const review = useReview()
+
+/** Targets the slide on screen, for slides with no empty area to click. */
+function selectWholeSlide() {
+  const found = pickCurrentSlide()
+  if (!found) return
+  review.select(found.pick)
+  markSelected(found.element, true)
+}
 
 const readiness = computed(() => describeReadiness(review.readiness.value))
 const TONES = { ok: 'text-green-700 dark:text-green-400', warn: 'text-amber-700 dark:text-amber-300', error: 'text-red-600 dark:text-red-400', muted: 'opacity-60' }
@@ -34,16 +43,22 @@ const STATE_STYLE: Record<CommentState, { icon: string; color: string }> = {
       </button>
     </header>
 
-    <ReviewComposer v-if="review.pick.value" :pick="review.pick.value" @add="review.add" @cancel="review.dismiss" />
+    <ReviewComposer v-if="review.pick.value" :pick="review.pick.value" @add="review.add" @cancel="review.dismiss" @whole-slide="selectWholeSlide" />
+    <div v-else class="px-3 py-2 border-b border-main flex items-center justify-between gap-2 text-xs">
+      <span class="opacity-70 min-w-0">Click an element, or an empty area for the whole slide.</span>
+      <button class="shrink-0 px-2 py-1 rounded border border-main hover:bg-active" title="Comment on the whole slide" data-testid="whole-slide" @click="selectWholeSlide">
+        Whole slide
+      </button>
+    </div>
 
     <div class="flex-1 min-h-0 overflow-y-auto p-3" data-testid="stack">
-      <p v-if="!review.comments.value.length && !review.pick.value" class="text-sm opacity-70">Click an element on the slide to comment on it.</p>
+      <p v-if="!review.comments.value.length" class="text-sm opacity-70">No comments yet.</p>
       <section v-for="g in review.groups.value" :key="g.slide" class="mb-4" data-testid="group">
         <h3 class="text-xs font-semibold uppercase tracking-wide opacity-60 mb-1">Slide {{ g.slide }}</h3>
         <ul class="list-none m-0 p-0 flex flex-col gap-2">
           <li v-for="c in g.items" :key="c.id" class="p-2 rounded border border-main bg-active text-sm" :data-state="c.state" data-testid="item">
             <div class="flex items-start justify-between gap-2">
-              <div class="text-xs opacity-60 break-words min-w-0">{{ c.text }}</div>
+              <div class="text-xs opacity-60 break-words min-w-0" data-testid="target">{{ isWholeSlide(c) ? `Slide ${c.slide} · whole slide` : c.text }}</div>
               <span class="shrink-0 inline-flex items-center gap-1 text-xs font-medium" :class="STATE_STYLE[c.state].color" data-testid="state">
                 <span :class="STATE_STYLE[c.state].icon" aria-hidden="true" />{{ STATE_LABELS[c.state] }}
               </span>

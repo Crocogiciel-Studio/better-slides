@@ -42,7 +42,7 @@ describe('review state', () => {
     review.toggle()
     expect(review.open.value).toBe(false)
     expect(review.pick.value).toBeUndefined()
-    expect(released()).toBe(3)
+    expect(released()).toBe(2) // selecting keeps the focus for the note
   })
 
   it('adds a note on the selection, counts it and releases the focus', async () => {
@@ -52,7 +52,7 @@ describe('review state', () => {
     expect(review.pick.value).toBeUndefined()
     expect(review.count.value).toBe(1)
     expect(review.groups.value[0].items[0].note).toBe('Shorter title')
-    expect(released()).toBe(2)
+    expect(released()).toBe(1)
   })
 
   it('removes a comment', async () => {

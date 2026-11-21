@@ -2,7 +2,8 @@
 import { onBeforeUnmount, onMounted, watch } from 'vue'
 import ReviewSidebar from './components/ReviewSidebar.vue'
 import { isPlayMode, useReview } from './components/reviewState'
-import { startSelection } from './components/selection'
+import { isWholeSlide } from '@better-slide/shared'
+import { markSelected, startSelection } from './components/selection'
 
 // Slidev renders this layer inside the scaled slide, so the sidebar is teleported to <body>.
 const play = isPlayMode(location.pathname, import.meta.env.BASE_URL)
@@ -15,8 +16,16 @@ let stopRun: (() => void) | undefined
 watch(review.open, (on) => {
   document.documentElement.classList.toggle(ROOT_CLASS, on)
   stopSelection?.()
-  stopSelection = on ? startSelection((pick) => review.select(pick)) : undefined
+  stopSelection = on
+    ? startSelection((pick, element) => {
+        review.select(pick)
+        markSelected(element, isWholeSlide(pick))
+      })
+    : undefined
 })
+
+// The outline follows the selection: gone after Add, Cancel or leaving review mode.
+watch(review.pick, (p) => p || markSelected(undefined))
 
 /** `r` toggles review mode, unless the author is typing or using a modifier. */
 function onKey(e: KeyboardEvent) {

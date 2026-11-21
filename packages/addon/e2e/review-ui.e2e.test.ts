@@ -145,6 +145,59 @@ describe.skipIf(!chromium)('review UI in Chromium', { timeout: 60_000 }, () => {
     await expect.poll(() => slideNo(page), { message: `ArrowLeft after ${step}` }).toBe(before)
   }
 
+  /** Selecting puts the cursor in the note: the arrow keys stay in the field and the slide does not change. */
+  async function assertNoteFocused(page: Page, step: string) {
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-testid')), `focus after ${step}`).toBe('note')
+    const before = slideNo(page)
+    await page.keyboard.press('ArrowRight')
+    await page.waitForTimeout(300)
+    expect(slideNo(page), `ArrowRight in the note after ${step}`).toBe(before)
+  }
+
+  for (const theme of THEMES)
+    it(`comments on the whole slide by its background or the control, without changing slide, in ${theme} mode`, async () => {
+      await reset()
+      const { page, context, errors } = await open({ theme })
+      await page.keyboard.press('r')
+      await page.waitForSelector('[data-testid=sidebar]')
+      const before = await rect(page, '[data-testid=sidebar]')
+      const content = (await rect(page, '#slide-content'))!
+
+      await page.mouse.click(content.left + content.width * 0.75, content.top + content.height * 0.85)
+      await expect.poll(() => page.locator('[data-testid=composer-target]').textContent()).toBe('Whole slide')
+      expect(slideNo(page), 'a click on the slide background must not change slide').toBe(2)
+      expect(await page.locator('[data-slidev-no="2"][data-better-slide-selected=slide]').count()).toBe(1)
+      expect(await rect(page, '[data-testid=sidebar]')).toEqual(before) // autofocus moved nothing
+      expect(await page.locator('[data-testid=stack]').evaluate((n) => n.scrollTop)).toBe(0)
+      await assertNoteFocused(page, 'a background click')
+      await assertNoOverlap(page)
+      await page.screenshot({ path: join(shots, `13-whole-slide-selected-1280x720-${theme}.png`) })
+
+      await page.locator('[data-testid=note]').fill('Lighter background')
+      await page.locator('[data-testid=add]').click()
+      await expect.poll(() => page.locator('[data-testid=target]').allTextContents()).toEqual(['Slide 2 · whole slide'])
+      expect(await page.locator('[data-better-slide-selected]').count()).toBe(0)
+      await assertKeyboardWorks(page, 'adding a whole-slide comment')
+
+      await page.locator('#slide-content h1:visible').first().click()
+      await assertNoteFocused(page, 'select an element')
+      await page.screenshot({ path: join(shots, `14-composer-autofocus-1280x720-${theme}.png`) })
+      await page.locator('[data-testid=composer-whole-slide]').click()
+      await expect.poll(() => page.locator('[data-testid=composer-target]').textContent()).toBe('Whole slide')
+      await page.locator('[data-testid=dismiss]').click()
+
+      await page.locator('[data-testid=whole-slide]').click()
+      await assertNoteFocused(page, 'the Whole slide control')
+      await page.keyboard.type('Add a closing line')
+      await page.keyboard.press('Enter')
+      await expect.poll(() => page.locator('[data-testid=target]').allTextContents()).toEqual(['Slide 2 · whole slide', 'Slide 2 · whole slide'])
+      expect(slideNo(page)).toBe(2)
+      await assertKeyboardWorks(page, 'adding with the Whole slide control')
+      expect(errors).toEqual([])
+      await context.close()
+      await reset()
+    })
+
   it('puts the toggle inside the Slidev bar and shows no floating card', async () => {
     await reset()
     const { page, context, errors } = await open()
@@ -254,7 +307,19 @@ describe.skipIf(!chromium)('review UI in Chromium', { timeout: 60_000 }, () => {
     await page.locator('#slide-content h1:visible').first().click()
     expect(slideNo(page), 'a click on the selected element must not advance').toBe(slide)
     await page.waitForSelector('[data-testid=composer]')
-    await assertKeyboardWorks(page, 'select')
+    await assertNoteFocused(page, 'select')
+
+    // Another target keeps the typed note and the focus.
+    await page.keyboard.type('keep me')
+    await page.locator('#slide-content p:visible').first().click()
+    await expect.poll(() => page.locator('[data-testid=composer-target]').textContent()).toContain('Comments let you point')
+    expect(await page.locator('[data-testid=note]').inputValue()).toBe('keep me')
+    await assertNoteFocused(page, 'a second selection')
+    await page.locator('[data-testid=dismiss]').click()
+    await assertKeyboardWorks(page, 'Cancel')
+
+    await page.locator('#slide-content h1:visible').first().click()
+    await page.waitForSelector('[data-testid=composer]')
 
     // Arrow keys edit text while the note field has the focus; Escape gives the deck back.
     await page.locator('[data-testid=note]').click()
@@ -277,6 +342,7 @@ describe.skipIf(!chromium)('review UI in Chromium', { timeout: 60_000 }, () => {
     await assertKeyboardWorks(page, 'remove')
 
     await page.locator('#slide-content h1:visible').first().click()
+    await assertNoteFocused(page, 'select after remove')
     await page.locator('[data-testid=note]').fill('HANG forever')
     await page.keyboard.press('Enter')
     await page.waitForSelector('[data-testid=item]')

@@ -119,9 +119,9 @@ export function createReviewState(api: Client, release: () => void = releaseFocu
     release()
   }
 
+  /** The composer takes the focus for the note; Escape, Add and Cancel give it back to the deck. */
   const select = (p: ElementPick) => {
     pick.value = p
-    release()
   }
 
   const dismiss = () => {
