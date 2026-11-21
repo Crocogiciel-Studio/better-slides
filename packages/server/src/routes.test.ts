@@ -43,6 +43,15 @@ describe('review routes', () => {
     expect(comments[0].line).toBe(14)
   })
 
+  it('adds a whole-slide comment with no text, selector or line', async () => {
+    const t = client()
+    const res = await t.call('POST', '/comments', { slide: 3, target: 'slide', note: 'Lighter', text: 'Intro' })
+    expect(res.status).toBe(201)
+    expect(await res.json()).toEqual({ id: '1', slide: 3, target: 'slide', note: 'Lighter', state: 'waiting' })
+    await t.call('POST', '/send')
+    expect(t.prompts[0]).toContain('- c1: the whole slide')
+  })
+
   it('rejects an invalid comment naming the field', async () => {
     const { call } = client()
     const res = await call('POST', '/comments', { slide: 2, text: 'x', selector: 'p' })

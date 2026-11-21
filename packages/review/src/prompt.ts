@@ -1,4 +1,4 @@
-import type { Comment } from '@better-slide/shared'
+import { type Comment, isWholeSlide } from '@better-slide/shared'
 import { neutralise, promptId, REPORT_INSTRUCTION } from './report.ts'
 
 type Item = Comment & { id: string }
@@ -15,14 +15,16 @@ export function buildPrompt(comments: Item[]): string {
   for (const c of promptOrder(comments)) bySlide.set(c.slide, [...(bySlide.get(c.slide) ?? []), c])
   const sections = [...bySlide].map(([slide, list]) => {
     const lines = list.map((c) => {
-      const where = [`text "${field(c.text)}"`, `selector \`${field(c.selector)}\``, c.line ? `near line ${c.line}` : ''].filter(Boolean)
+      const where = isWholeSlide(c)
+        ? ['the whole slide']
+        : [`text "${field(c.text)}"`, `selector \`${field(c.selector)}\``, c.line ? `near line ${c.line}` : ''].filter(Boolean)
       return `- ${promptId(c.id)}: ${where.join(', ')}\n  Change: ${field(c.note)}`
     })
     return `Slide ${slide}\n${lines.join('\n')}`
   })
   return [
     'Edit this Slidev deck (slides.md and files it imports) to apply the review comments below.',
-    'Slides are numbered from 1 in order of appearance. Each comment names the element by its text; a line number is only a hint.',
+    'Slides are numbered from 1 in order of appearance. Each comment names its element by its text, or says the whole slide; a line number is only a hint.',
     'Change only what the comments ask. Keep the deck a valid Slidev project.',
     REPORT_INSTRUCTION,
     '',

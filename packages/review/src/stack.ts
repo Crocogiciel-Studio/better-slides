@@ -22,7 +22,7 @@ export function createStack() {
     if (locked) throw new StackLockedError()
   }
   const update = (id: string, change: Partial<StackItem>) => {
-    items = items.map((i) => (i.id === id ? { ...i, ...change } : i))
+    items = items.map((i) => (i.id === id ? ({ ...i, ...change } as StackItem) : i))
   }
   const inBatch = () => items.filter((i) => batch.has(i.id))
   const close = (decide: (item: StackItem) => Partial<StackItem> | undefined) => {

@@ -1,6 +1,6 @@
 import type { Agent, AgentEvent, AgentRun } from '@better-slide/agents'
 import { buildPrompt, createReportReader, createStack, promptId, promptOrder, type ReportMark, StackLockedError, stripMarkers } from '@better-slide/review'
-import { type AgentReadiness, isSendable, validateComment, type ReviewSnapshot, type RunStatus } from '@better-slide/shared'
+import { type AgentReadiness, isSendable, isWholeSlide, validateComment, type ReviewSnapshot, type RunStatus } from '@better-slide/shared'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 
@@ -105,7 +105,7 @@ export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
     const result = validateComment(await c.req.json().catch(() => null))
     if (!result.ok) return c.json({ error: result.message, field: result.field }, 400)
     const comment = result.comment
-    if (comment.line === undefined) {
+    if (!isWholeSlide(comment) && comment.line === undefined) {
       const line = deps.locate?.(comment.slide, comment.text)
       if (line) comment.line = line
     }
