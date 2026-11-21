@@ -1,0 +1,14 @@
+{
+  "name": "slidev-addon-better-slide",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "keywords": ["slidev-addon", "slidev"],
+  "engines": { "slidev": ">=53.1.0" },
+  "dependencies": {
+    "@better-slide/server": "workspace:*",
+    "@better-slide/agents": "workspace:*",
+    "@better-slide/review": "workspace:*",
+    "@better-slide/shared": "workspace:*"
+  }
+}

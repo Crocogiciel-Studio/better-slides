@@ -1,0 +1,14 @@
+{
+  "name": "@better-slide/server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@better-slide/agents": "workspace:*",
+    "@better-slide/review": "workspace:*",
+    "@better-slide/shared": "workspace:*",
+    "@hono/node-server": "^1.13.0",
+    "hono": "^4.6.0"
+  }
+}

@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+  - examples/*
+# Sandbox proxy only (ECONNRESET / incomplete installs under parallel downloads). Not needed on a normal network: delete both lines there.
+networkConcurrency: 4
+fetchRetries: 6
+allowBuilds:
+  esbuild: true
