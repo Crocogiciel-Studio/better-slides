@@ -1,4 +1,4 @@
-import type { Agent, AgentEvent } from '@better-slide/agents'
+import type { Agent, AgentEvent, AgentReadiness } from '@better-slide/agents'
 import { describe, expect, it } from 'vitest'
 import { createApp, MAX_BODY_BYTES } from './index.ts'
 
@@ -249,6 +249,68 @@ describe('review routes', () => {
     expect(await next()).toMatchObject({ comments: [{ state: 'done', reply: 'Renamed' }] })
     t.emit({ type: 'finished' })
     expect(await next()).toMatchObject({ status: { state: 'finished' }, locked: false })
+    await reader.cancel()
+  })
+
+  function withReadiness(answers: AgentReadiness[]) {
+    const deps = controllableAgent()
+    let checks = 0
+    const agent: Agent = { ...deps.agent, status: async () => answers[Math.min(checks++, answers.length - 1)] }
+    return { t: client({ ...deps, agent }), checks: () => checks }
+  }
+  const READY: AgentReadiness = { agent: 'Fake', ready: true }
+  const LOGGED_OUT: AgentReadiness = { agent: 'Fake', ready: false, reason: 'not-logged-in', hint: 'Not logged in: log in' }
+
+  it('serves the readiness from a short cache, and checks again on demand', async () => {
+    const { t, checks } = withReadiness([LOGGED_OUT, READY])
+    expect(await (await t.call('GET', '/agent')).json()).toEqual(LOGGED_OUT)
+    expect(await (await t.call('GET', '/agent')).json()).toEqual(LOGGED_OUT)
+    expect(checks()).toBe(1)
+    expect(await (await t.call('GET', '/agent?refresh=1')).json()).toEqual(READY)
+    expect(checks()).toBe(2)
+  })
+
+  it('checks again right before sending and refuses when the agent is not ready', async () => {
+    const { t, checks } = withReadiness([READY, LOGGED_OUT])
+    await t.call('GET', '/agent')
+    await t.add('one')
+    const res = await t.call('POST', '/send')
+    expect(res.status).toBe(409)
+    expect(await res.json()).toMatchObject({ error: 'Not logged in: log in', agent: LOGGED_OUT })
+    expect(checks()).toBe(2)
+    expect(t.prompts).toHaveLength(0)
+    expect(await comments(t)).toEqual([['1', 'waiting', undefined]])
+  })
+
+  it('treats an agent with no readiness check, or a check that throws, as ready', async () => {
+    const t = client()
+    expect(await (await t.call('GET', '/agent')).json()).toEqual({ agent: 'fake', ready: true })
+    const deps = controllableAgent()
+    const broken = client({ ...deps, agent: { ...deps.agent, status: () => Promise.reject(new Error('x')) } })
+    await broken.add('one')
+    expect((await broken.call('POST', '/send')).status).toBe(202)
+  })
+
+  it('on a login failure puts the comments back to waiting and checks readiness again', async () => {
+    const { t, checks } = withReadiness([READY, LOGGED_OUT])
+    const [a, b] = [await t.add('one'), await t.add('two')]
+    await t.call('POST', '/send')
+    t.emit({ type: 'text', text: `[[bs:c${a.id}:done]] ok\n[[bs:c${b.id}:start]]` })
+    t.emit({ type: 'failed', reason: 'Login expired: log in', kind: 'auth' })
+    expect(await (await t.call('GET', '/status')).json()).toEqual({ state: 'failed', reason: 'Login expired: log in', kind: 'auth' })
+    expect(await comments(t)).toEqual([[a.id, 'done', 'ok'], [b.id, 'waiting', undefined]])
+    await new Promise((r) => setTimeout(r, 0))
+    expect(checks()).toBe(2)
+    expect(await (await t.call('GET', '/agent')).json()).toEqual(LOGGED_OUT)
+  })
+
+  it('pushes the readiness in the snapshot', async () => {
+    const { t } = withReadiness([LOGGED_OUT])
+    const res = await t.call('GET', '/events')
+    const reader = res.body!.getReader()
+    const text = async () => new TextDecoder().decode((await reader.read()).value)
+    expect(await text()).not.toContain('"agent"')
+    expect(await text()).toContain('"reason":"not-logged-in"')
     await reader.cancel()
   })
 })

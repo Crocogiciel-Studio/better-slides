@@ -1,6 +1,6 @@
 import type { Agent, AgentEvent, AgentRun } from '@better-slide/agents'
 import { buildPrompt, createReportReader, createStack, promptId, promptOrder, type ReportMark, StackLockedError, stripMarkers } from '@better-slide/review'
-import { isSendable, validateComment, type ReviewSnapshot, type RunStatus } from '@better-slide/shared'
+import { type AgentReadiness, isSendable, validateComment, type ReviewSnapshot, type RunStatus } from '@better-slide/shared'
 import { Hono } from 'hono'
 import { streamSSE } from 'hono/streaming'
 
@@ -13,6 +13,9 @@ export interface ReviewDeps {
   locate?: (slide: number, text: string) => number | undefined
 }
 
+/** How long a readiness check is trusted, so opening the sidebar does not spawn the CLI each time. */
+export const READINESS_TTL_MS = 30_000
+
 export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
   const stack = createStack()
   let status: RunStatus = { state: 'idle' }
@@ -22,7 +25,10 @@ export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
   let reader = createReportReader([])
   const listeners = new Set<(s: ReviewSnapshot) => void>()
 
-  const snapshot = (): ReviewSnapshot => ({ status, comments: stack.list(), locked: stack.locked })
+  let readiness: { value: AgentReadiness; at: number } | undefined
+  let checking: Promise<AgentReadiness> | undefined
+
+  const snapshot = (): ReviewSnapshot => ({ status, comments: stack.list(), locked: stack.locked, ...(readiness ? { agent: readiness.value } : {}) })
   const publish = () => {
     const s = snapshot()
     listeners.forEach((l) => l(s))
@@ -30,6 +36,22 @@ export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
   const setStatus = (next: RunStatus) => {
     status = next
     publish()
+  }
+
+  /** The agent's readiness, from the cache unless `fresh`. Concurrent checks share one CLI call. An agent with no check is ready. */
+  const checkReadiness = (fresh = false): Promise<AgentReadiness> => {
+    if (!fresh && readiness && Date.now() - readiness.at < READINESS_TTL_MS) return Promise.resolve(readiness.value)
+    checking ??= (async () => {
+      const value: AgentReadiness = deps.agent.status
+        ? await deps.agent.status().catch(() => ({ agent: deps.agent.name, ready: true, reason: 'unknown' as const }))
+        : { agent: deps.agent.name, ready: true }
+      const changed = JSON.stringify(value) !== JSON.stringify(readiness?.value)
+      readiness = { value, at: Date.now() }
+      checking = undefined
+      if (changed) publish()
+      return value
+    })()
+    return checking
   }
 
   /** Applies the agent's markers; a start also moves the "comment N of M" counter. */
@@ -56,8 +78,12 @@ export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
       setStatus({ state: 'finished' })
     } else if (event.type === 'failed') {
       apply(reader.flush())
-      stack.fail(event.reason, event.kind === 'cancelled')
+      stack.fail(event.reason, event.kind === 'cancelled' || event.kind === 'auth')
       setStatus({ state: 'failed', reason: event.reason, ...(event.kind ? { kind: event.kind } : {}) })
+      if (event.kind === 'auth') {
+        readiness = undefined
+        void checkReadiness(true)
+      }
     }
   }
 
@@ -106,8 +132,17 @@ export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
     return c.json({ ok: true })
   })
 
-  app.post('/send', (c) => {
+  /** `?refresh=1` checks again instead of using the cached answer. */
+  app.get('/agent', async (c) => c.json(await checkReadiness(c.req.query('refresh') === '1')))
+
+  app.post('/send', async (c) => {
     if (status.state === 'running') return c.json({ error: 'A run is already in progress' }, 409)
+    if (stack.list().length === 0) return c.json({ error: 'The stack is empty: add a comment before sending' }, 400)
+    // Checked again right before sending: a login can expire while the sidebar is open.
+    const ready = await checkReadiness(true)
+    if (!ready.ready) return c.json({ error: ready.hint ?? `${ready.agent} is not ready`, agent: ready }, 409)
+    // Another send may have started during the check.
+    if ((status as RunStatus).state === 'running') return c.json({ error: 'A run is already in progress' }, 409)
     if (stack.list().length === 0) return c.json({ error: 'The stack is empty: add a comment before sending' }, 400)
     if (!stack.list().some(isSendable)) return c.json({ error: 'Nothing to send: every comment is finished. Clear them or add a comment' }, 400)
     const comments = promptOrder(stack.begin())
@@ -133,6 +168,7 @@ export function registerReviewRoutes(app: Hono, deps: ReviewDeps): void {
 
   app.get('/events', (c) =>
     streamSSE(c, async (stream) => {
+      if (!readiness) void checkReadiness()
       const queue: ReviewSnapshot[] = [snapshot()]
       let wake: (() => void) | undefined
       const listener = (s: ReviewSnapshot) => {

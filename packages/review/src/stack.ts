@@ -91,11 +91,11 @@ export function createStack() {
       close((i) => (i.state === 'waiting' || i.state === 'in-progress' ? { state: 'unreported', reply: fallback } : undefined))
     },
     /**
-     * The run failed or was cancelled. Outcomes stay. On a failure the comment in progress is `failed` with the
-     * reason; on a cancel it goes back to waiting. Comments not started stay waiting.
+     * The run failed or was cancelled. Outcomes stay. The comment in progress is `failed` with the reason, or back to
+     * waiting with `putBack` (a cancel, or a login failure that is not the comment's fault). Comments not started stay waiting.
      */
-    fail(reason: string, cancelled = false) {
-      close((i) => (i.state !== 'in-progress' ? undefined : cancelled ? { state: 'waiting' } : { state: 'failed', reply: reason }))
+    fail(reason: string, putBack = false) {
+      close((i) => (i.state !== 'in-progress' ? undefined : putBack ? { state: 'waiting' } : { state: 'failed', reply: reason }))
     },
   }
 }
